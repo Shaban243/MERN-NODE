@@ -12,7 +12,7 @@
 //     {id: 2, name: 'Hassan'}
 // ];
 
-// //Get all the users
+//Get all the users
 
 // app.get('/users', async(req, res) => {
 //     res.json({ users });
@@ -99,7 +99,7 @@
                                         // ------------------------------------ //
 
 
-                    // Status Codes and Error Handling
+//                     Status Codes and Error Handling
 
 // There are 5 different categories of Status codes:
 // 1) Information Status Codes (100) ==> Represents Informational Messages
