@@ -1,4 +1,4 @@
-                            // Asynchronous programming with callbacks
+// Asynchronous programming with callbacks
 
 // const fs = require('fs');
 
@@ -11,8 +11,8 @@
 // });
 
 
-                        // Asynchronous programming with Promises
-            
+// Asynchronous programming with Promises
+
 // const fs = require('fs').promises;
 
 // fs.readFile('text.txt', 'utf8')
@@ -20,7 +20,7 @@
 // .catch( err => console.err("Error reading file: ", err));
 
 
-                        // Asynchronous programming with async/await
+// Asynchronous programming with async/await
 
 // const fs = require('fs').promises;
 
@@ -31,15 +31,15 @@
 //     } catch (error) {
 //         console.error('Error reading file: ', error);
 //     }
-    
+
 // }
 
 // readFile();
 
 
-                                    // Streams //
+// Streams //
 
-        //Readable stream
+//Readable stream
 // const fs = require('fs');
 
 // const stream = fs.createReadStream('largefile.txt', 'utf8');
@@ -77,7 +77,7 @@
 
 
 
-                                // Duplex Stream
+// Duplex Stream
 // const {duplex} = require('stream');
 
 // const duplexStream = new Duplex({
@@ -99,3 +99,84 @@
 
 // duplexStream.write('Writing data to duplex stream!');
 // duplexStream.end();
+
+
+// Transform stream //
+
+// const { Transform } = require('stream');
+
+// const transformStream = new Transform({
+//         transform(data, encoding, callback) {
+//                 const lowerCaseData = data.toString().toLowerCase();
+//                 this.push(lowerCaseData);
+//                 callback();
+//         }
+// });
+
+// process.stdin.pipe(transformStream).pipe(process.stdout);
+
+
+
+                                                  // Buffers //
+
+                // Buffer of specified size
+// const buf = Buffer.alloc(10);
+// console.log(buf);
+
+
+                // Create buffer of specified size, skips initialization
+// const buf = Buffer.allocUnsafe(10);
+// console.log(buf);
+
+
+
+                // Buffer of specified size
+// const buf1 = Buffer.from('Hello, World!');
+// console.log(buf1);
+
+
+
+                // Creating buffer from array of bytes
+// const buf = Buffer.from([0x48, 0x65, 0x6c, 0x6c, 0x6f]);
+// console.log(buf);
+// console.log(buf.toString());
+
+
+
+                // Creating buffer from string
+// const buf = Buffer.from('Hello, World!');
+// const buf1 = Buffer.from(buf);
+// console.log(buf1);
+// console.log(buf1.toString());
+
+
+
+                // Concatenation of two buffers
+// const buf = Buffer.from('Hello,');
+// const buf1 = Buffer.from('World!');
+// const buf2 = Buffer.concat([buf, buf1]);
+// console.log(buf2.toString());
+
+
+
+
+                // Write string to a buffer
+// const buf = Buffer.alloc(10);
+// buf.write('Hello', 0, 'utf8');
+// console.log(buf);
+
+
+
+                // Create buffer for filling with the given value
+// const buf = Buffer.alloc(15);
+// buf.fill(0x41);
+// console.log(buf.toString());
+
+
+
+// Buffer representing the no. of bytes for given string
+// const str = 'Shaban';
+// console.log(`The no. of bytes for ${str} string needed to represent: `, Buffer.byteLength(str, 'utf8'));
+
+
+                                        // ----------------------------------------------------- //
