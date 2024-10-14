@@ -13,18 +13,18 @@
 
 // Write a function that fetch userdata through projection and limit
 
-const getUserData = async () => {
-    try {
-        const users = await users.find( {}, 'name email')
-        .sort({ age: 1 })
-        .limit(10);
+// const getUserData = async () => {
+//     try {
+//         const users = await users.find( {}, 'name email')
+//         .sort({ age: 1 })
+//         .limit(10);
         
-        console.log('The users fetch data is: ', users);
-    } catch (error) {
-        console.error(error.message);
-    }
-}
-            getUserData();
+//         console.log('The users fetch data is: ', users);
+//     } catch (error) {
+//         console.error(error.message);
+//     }
+// }
+//             getUserData();
 
 
 
