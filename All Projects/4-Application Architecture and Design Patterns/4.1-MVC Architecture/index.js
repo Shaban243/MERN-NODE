@@ -34,7 +34,7 @@ app.get('/title', (req, res) => {
     res.render('index', {pageTitle: 'Index view', message: 'Welcome to MVC Architecture App!'});
 });
 
-app.get('/users/new', (req, res) => {
+app.get('/users', (req, res) => {
     res.render('users', {pageTitle:'New User'});
 });
 
