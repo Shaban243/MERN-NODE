@@ -28,14 +28,16 @@ const createUser = async (req, res) => {
     const { name, email, password, age } = req.body;
 
     try {
-        const newUser = new User({ name, email, password, age });
+        const newUser = new User({ name, email, age });
 
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
-        const savedUser = await newUser.save(hashedPassword);
+
+        newUser.password = hashedPassword;
+        const savedUser = await newUser.save();
 
         console.log(savedUser);
-        res.redirect('/api/v1/users');
+        res.redirect('/api/users');
     } catch (err) {
         console.error(err.message);
         return res.status(400).json({ message: 'Server Error', error: err.message });
@@ -43,10 +45,12 @@ const createUser = async (req, res) => {
 };
 
 
+
 // Get user by ID
 const getUserById = async (req, res) => {
     try {
         const user = await User.findById(req.params.id);
+        console.log(user,"user")
         if (!user) return res.status(400).json({ message: 'User with the given ID was not found' });
 
         res.render('userdetails', { pageTitle: 'User Details', user });

@@ -10,7 +10,7 @@ dotenv.config();
 const app = express();
 
 app.use(express.json());
-app.use('/api/v1', routes);
+app.use('/api', routes);
 
 
 const PORT = process.env.PORT || 3000;
@@ -42,7 +42,7 @@ app.get('/users/new', (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
-    res.status(500).send('Something broke!');
+    res.status(500).send(err);
 });
 
 
