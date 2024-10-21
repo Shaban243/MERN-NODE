@@ -85,7 +85,7 @@ const updateUserById = async (req, res) => {
             (id, { name, email, password, age }, { new: true, runValidators: true });
         if (!updatedUser) return res.status(400).json({ message: 'User with the given ID was not found!' });
 
-        res.redirect('/users');
+        res.render('userdetails', { pageTitle: 'User Details', User });;
     } catch (err) {
         console.error(err.message);
         return res.status(400).json({ message: 'Server Error', error: err.message });

@@ -8,11 +8,14 @@
 <body>
     <h1>User List</h1>
 
+
     <ul>
-        <% users?.forEach(user => { %> 
+        <% if (user) { %> 
             <li><%= user.name %> (Email: <%= user.email %>, Password: <%= user.password %>, Age: <%= user.age %>)</li>
-        <% }) %>
+        <% } %>
     </ul>
+    
+
     
    
 </body>
