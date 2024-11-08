@@ -18,14 +18,14 @@ export class UsersService {
 
 
   // Post a new user
-  async create(_createUserDto: CreateUserDto) {
+  async create(createUserDto: CreateUserDto) {
 
     try {
-      console.log('_createUserDto', CreateUserDto);
+      console.log('createUserDto', CreateUserDto);
 
-      const hashedPassword = await bcrypt.hash(_createUserDto.password, 10);
+      const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
 
-      const user = this.usersRepository.create({ ..._createUserDto, password: hashedPassword});
+      const user = this.usersRepository.create({ ...createUserDto, password: hashedPassword});
       console.log('Data of newly created user is: ', user);
 
       return await this.usersRepository.save(user);

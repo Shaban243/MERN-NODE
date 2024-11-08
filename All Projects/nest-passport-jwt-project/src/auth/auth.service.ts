@@ -1,25 +1,32 @@
 import { Injectable } from '@nestjs/common';
-import { AuthPayloadDto } from './dto/auth.dto';
 import { JwtService } from '@nestjs/jwt';
-
-const fakeUsers = [
-    { id: 1, username: 'Ali', password: 'hello123'},
-    { id: 2, username: 'Ahmad', password: 'world123'}
-];
+import { AuthPayloadDto } from './dto/auth.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { User } from '../users/entities/user.entity'; 
 
 @Injectable()
 export class AuthService {
+    constructor(
+        private jwtService: JwtService,
+        @InjectRepository(User) private userRepository: Repository<User>
+        
+         
+    ) {}
 
-    constructor(private jwtService: JwtService) {}
+    async validateUser(authPayload: AuthPayloadDto): Promise<any> {
+        const {name, password } = authPayload;
 
-    validateUser({ username, password }: AuthPayloadDto) {
-        const findUser = fakeUsers.find(user => user.username == username)
-        if(!findUser) return null;
+        
+        const user = await this.userRepository.findOne({ where: { email: name } });
 
-        if(password == findUser.password) {
-            const { password, ...user } =  findUser;
-            return this.jwtService.sign(user);
+        
+        if (user && user.password === password) {
+            const { password, ...result } = user; 
+            return this.jwtService.sign(result); 
+
         }
+
+        return null; 
     }
 }
-    

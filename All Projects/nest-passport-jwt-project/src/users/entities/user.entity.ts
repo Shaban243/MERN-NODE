@@ -1,12 +1,12 @@
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
-@Entity('users') 
+@Entity('users')
 
 export class User {
   static username: string;
-    static password: string;
+  static password: string;
   static find(arg0: (user: any) => boolean) {
-      throw new Error('Method not implemented.');
+    throw new Error('Method not implemented.');
   }
 
   @PrimaryGeneratedColumn()

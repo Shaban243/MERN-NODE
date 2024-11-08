@@ -5,8 +5,6 @@ import { IsBoolean, IsEmail, IsEmpty, IsNotEmpty, IsNumber, IsString } from 'cla
 
 export class UpdateUserDto extends PartialType(CreateUserDto) {
 
-    @IsNumber()
-    id: number;
 
     @IsString()
     @IsNotEmpty()
