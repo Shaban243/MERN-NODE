@@ -1,16 +1,38 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Product } from './entities/product.entity';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
+import { User } from 'src/users/entities/user.entity';
 
 @Injectable()
 export class ProductsService {
+
   constructor(
     @InjectRepository(Product)
     private productsRepository: Repository<Product>,
+
+    @InjectRepository(User)
+    private usersRepository: Repository<User>,
   ) {}
+
+
+
+  // Function for associating the products to user
+  async associateProductsWithUser(user: User, productIds: number[]): Promise<Product[]> {
+    const products = await this.productsRepository.find({
+      where : { id : In(productIds) }
+    });
+    
+    for (const product of products) {
+      product.user = user;
+    }
+
+    return this.productsRepository.save(products);
+    }
+
+
 
 
   // Post a new Product
@@ -44,6 +66,7 @@ export class ProductsService {
       console.error('Error retrieving products: ', error);
       throw new Error('Failed to retrieve products');
     }
+
   }
 
 
@@ -52,9 +75,16 @@ export class ProductsService {
   async findOne(id: number) : Promise<Product>{
 
     try {
-      const product =  await this.productsRepository.findOne({ where : { id } });
+      const product =  await this.productsRepository.findOne({
+         where : { id },
+         relations: ['user'],
+        });
       if(!product) throw new NotFoundException(`Product with given id ${id} not found!`);
+
+      console.log(`Product with given id ${id} is: `, product);
       return  product;
+
+
 
     } catch (error) {
       console.error('Error finding product:', error);
@@ -102,4 +132,6 @@ export class ProductsService {
     }
     
   }
+
+
 }

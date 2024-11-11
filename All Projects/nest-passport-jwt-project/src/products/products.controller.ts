@@ -28,8 +28,10 @@ export class ProductsController {
 
   @Get(':id')
 
-  async findOne(@Param('id') id: string) {
-  return await this.productsService.findOne(+id);
+  async findOne(@Param('id') id: number) {
+  const product = await this.productsService.findOne(+id);
+
+  return product;
   }
 
 

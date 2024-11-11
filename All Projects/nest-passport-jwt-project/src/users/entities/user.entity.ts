@@ -1,13 +1,14 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { ERoles } from '../dto/create-user.dto';
+import { Product } from 'src/products/entities/product.entity';
 
 @Entity('users')
-
 export class User {
-  username: string;
-  static password: string;
-  static find(arg0: (user: any) => boolean) {
-    throw new Error('Method not implemented.');
-  }
+  // static username: string;
+  // static password: string;
+  // static find(arg0: (user: any) => boolean) {
+  //   throw new Error('Method not implemented.');
+  // }
 
   @PrimaryGeneratedColumn()
   id: number;
@@ -27,7 +28,11 @@ export class User {
   @Column({ default: true })
   isActive: boolean;
 
-  @Column()
-  role: string;
+  @Column({ type: 'enum', enum: ERoles, default: ERoles.User })
+  role: ERoles;
+
+
+  @OneToMany( () => Product, product => product.user, { cascade : true})
+  products: Product[];
 
 }

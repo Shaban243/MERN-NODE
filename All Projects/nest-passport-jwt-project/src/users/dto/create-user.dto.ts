@@ -1,29 +1,50 @@
-import { IsBoolean, IsEmail, IsNotEmpty, IsNumber, IsString } from "class-validator";
+import {
+  IsBoolean,
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
+
+export enum ERoles {
+  Admin = 'admin',
+  User = 'user',
+}
+
+export interface UserInterface {
+  name: string;
+  email: string;
+  password: string;
+  address: string;
+  isActive: boolean;
+  role?: ERoles;
+}
 
 export class CreateUserDto {
 
-    @IsString()
-    @IsNotEmpty()
-    name: string;
+  @IsNotEmpty()
+  @IsString()
+  name: string;
 
-    @IsString()
-    @IsNotEmpty()
-    @IsEmail()
-    email: string;
+  @IsNotEmpty()
+  @IsString()
+  @IsEmail()
+  email: string;
 
-    @IsString()
-    @IsNotEmpty()
-    password: string;
+  @IsNotEmpty()
+  @IsString()
+  password: string;
 
-    @IsString()
-    @IsNotEmpty()
-    address: string;
+  @IsNotEmpty()
+  @IsString()
+  address: string;
 
-    @IsBoolean()
-    @IsNotEmpty()
-    isActive: true;
+  @IsOptional()
+  @IsBoolean()
+  isActive: boolean;
 
-    @IsString()
-    @IsNotEmpty()
-    role: string
+  @IsOptional()
+  @IsEnum(ERoles)
+  role: ERoles;
 }

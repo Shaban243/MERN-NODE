@@ -1,41 +1,31 @@
-import { Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
-// import { AuthPayloadDto } from './dto/auth.dto';
-// import { AuthService } from './auth.service';
-// import { AuthGuard } from '@nestjs/passport';
-import { LocalGuard } from './gurards/local.guard';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from './gurards/jwt.guard';
 import { Request } from 'express';
-
-
+import { AuthService } from './auth.service';
+import { LoginDto } from './dto/login.dto';
 
 interface RequestWithUser extends Request {
-    user?: any;
-  }
-
+  user?: any;
+}
 
 @Controller('auth')
 export class AuthController {
 
-constructor() {}
+  constructor(private readonly authService: AuthService) {}
 
-@Post('login')
-@UseGuards(LocalGuard)
-signIn( @Req() req: Request) {
-    
-    return req.user;
-}
+  @Post('login')
+  async logIn(@Body() logInDto: LoginDto) {
+    const accessToken = await this.authService.login(logInDto);
+    return { accessToken };
+  }
 
-
-@Get('status')
-@UseGuards(JwtAuthGuard)
-status(@Req() req: RequestWithUser) {
-    
+  // @UseGuards(JwtAuthGuard)
+  @Get('status')
+  status(@Req() req: RequestWithUser) {
     console.log('Inside authController status method');
     console.log(req.user);
 
     return { message: 'User is authenticated', user: req.user };
-
-}
-
+  }
 
 }
