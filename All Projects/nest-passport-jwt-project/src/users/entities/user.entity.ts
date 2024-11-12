@@ -31,6 +31,9 @@ export class User {
   @Column({ type: 'enum', enum: ERoles, default: ERoles.User })
   role: ERoles;
 
+  @Column({ nullable: true})
+  image_url: string;
+
 
   @OneToMany( () => Product, product => product.user, { cascade : true})
   products: Product[];

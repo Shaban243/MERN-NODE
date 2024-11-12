@@ -18,9 +18,10 @@ import { ProductsService } from 'src/products/products.service';
 
 @Injectable()
 export class UsersService {
+  
   constructor(
     @InjectRepository(User)
-    private usersRepository: Repository<User>,
+    private readonly usersRepository: Repository<User>,
 
     @InjectRepository(Product)
     private readonly productsRepository: Repository<Product>,
@@ -67,6 +68,13 @@ export class UsersService {
 
     return await this.usersRepository.save(user);
 
+  }
+
+
+
+  // Function for updating User Image 
+  async updateUserImage(UserId: number, image_url: string) : Promise<void>  {
+    await this.usersRepository.update(UserId, { image_url: image_url });
   }
 
 

@@ -11,11 +11,12 @@ export class ProductsService {
 
   constructor(
     @InjectRepository(Product)
-    private productsRepository: Repository<Product>,
+    private readonly productsRepository: Repository<Product>,
 
     @InjectRepository(User)
-    private usersRepository: Repository<User>,
+    private readonly usersRepository: Repository<User>,
   ) {}
+
 
 
 
@@ -52,7 +53,13 @@ export class ProductsService {
     }
     
   }
-  
+
+
+
+  // Function for updating Product Image
+  async updateProductImage(ProductId: number, image_url: string) : Promise<void>  {
+    await this.productsRepository.update(ProductId, { image_url: image_url});
+  }
 
 
 
