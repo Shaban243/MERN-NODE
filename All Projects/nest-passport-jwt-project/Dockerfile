@@ -17,7 +17,7 @@ COPY . .
 RUN npm run build
 
 # Expose the port on my app is running
-EXPOSE 4000
+EXPOSE 4000:4000
 
 # Start the application in development environment 
 CMD [ "npm", "run", "start:dev" ]

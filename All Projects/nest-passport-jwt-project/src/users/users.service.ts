@@ -23,7 +23,7 @@ import {
 import { CreateUserDto, UserInterface } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
 import { LoginInterface } from 'src/auth/dto/login.dto';
@@ -31,7 +31,7 @@ import { Product } from 'src/products/entities/product.entity';
 import { ProductsService } from 'src/products/products.service';
 import * as crypto from 'crypto';
 import { cognito } from 'config/aws.config';
-import { cognito_user_pool_id } from 'config/aws.config';
+import { cognito_user_pool_id } from 'config/aws.config'; 
 import { CognitoUserPool } from 'amazon-cognito-identity-js';
 import { Role } from 'src/auth/roles.enum';
 

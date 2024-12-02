@@ -24,7 +24,7 @@ import { Admin } from './entities/admin.entity';
 import { Role } from 'src/auth/roles.enum';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { cognito } from 'config/aws.config';
 import { error, log } from 'console';
 
