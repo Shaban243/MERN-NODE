@@ -31,9 +31,10 @@ import { Product } from 'src/products/entities/product.entity';
 import { ProductsService } from 'src/products/products.service';
 import * as crypto from 'crypto';
 import { cognito } from 'config/aws.config';
-import { cognito_user_pool_id } from 'config/aws.config'; 
+import { cognito_user_pool_id } from 'config/aws.config';
 import { CognitoUserPool } from 'amazon-cognito-identity-js';
 import { Role } from 'src/auth/roles.enum';
+import { GetObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 
 
 
@@ -48,9 +49,12 @@ export class UsersService {
     @InjectRepository(Product)
     private readonly productsRepository: Repository<Product>
   ) {
+
     this.cognito = new CognitoIdentityProviderClient({
       region: 'ap-south-1',
     });
+
+
 
   }
 
@@ -59,16 +63,16 @@ export class UsersService {
 
   // Function for registering the user in cognito
   async registerUser(createUserDto: CreateUserDto): Promise<any> {
-    const { email, password, name, address, isActive } = createUserDto;
-
-
+    const { email, password, name, address, isActive, role } = createUserDto;
+  
     if (createUserDto.role !== 'user') {
       throw new BadRequestException(
         `Invalid role: ${createUserDto.role}. Only users with the role "user" can be registered.`
       );
     }
-
+  
     const params = {
+      UserPoolId: process.env.COGNITO_USER_POOL_ID,
       ClientId: process.env.COGNITO_CLIENT_ID,
       Username: `user-${Date.now()}`,
       Password: password,
@@ -81,22 +85,29 @@ export class UsersService {
         { Name: 'custom:role', Value: createUserDto.role },
       ],
     };
-
+  
     try {
 
-      console.log('User params:', params);
-      const command = new SignUpCommand(params);
-      console.log('User command:', command);
-      const response = await this.cognito.send(command);
-
-      console.log('User registered:', response);
+      const signUpCommand = new SignUpCommand(params);
+      const signUpResponse = await this.cognito.send(signUpCommand);
+  
+      const adminUpdateParams = {
+        UserPoolId: process.env.COGNITO_USER_POOL_ID,
+        Username: params.Username,
+        UserAttributes: [
+          { Name: 'email_verified', Value: 'true' }, 
+        ],
+      };
+  
+      const updateCommand = new AdminUpdateUserAttributesCommand(adminUpdateParams);
+      await this.cognito.send(updateCommand);
+  
       return { message: 'Registration successful.' };
     } catch (error) {
       console.error('Error registering user:', error);
       console.error('Detailed error:', JSON.stringify(error, null, 2));
       throw new Error('Registration failed');
     }
-
   }
 
 
@@ -144,12 +155,10 @@ export class UsersService {
       },
     });
 
-    console.log('Auth Parameters:', params);
 
     try {
 
       const authResult = await cognito.send(user);
-      console.log('Login successful:', authResult);
 
       if (!authResult.AuthenticationResult) {
         console.error('AuthenticationResult is undefined');
@@ -385,23 +394,26 @@ export class UsersService {
 
 
 
-  
 
-// Function for getting a user by username and their associated products
+
+
+ // Function for getting a user by username and their associated products
 async findUserById(username: string): Promise<any> {
+
+  const s3Client = new S3Client({
+    region: process.env.AWS_REGION,
+  });
+
   try {
-    
     const params = {
-      UserPoolId: process.env.COGNITO_USER_POOL_ID, 
-      Username: username,  
+      UserPoolId: process.env.COGNITO_USER_POOL_ID,
+      Username: username,
     };
 
-    
     const userCommand = new AdminGetUserCommand(params);
     const response = await cognito.send(userCommand);
 
     if (!response) {
-   
       throw new NotFoundException(`User with username ${username} not found in Cognito`);
     }
 
@@ -412,20 +424,39 @@ async findUserById(username: string): Promise<any> {
     }
 
     const userProducts = await this.productsRepository.find({
-      where: { userId },   
-      relations: ['users'], 
+      where: { userId },
+      relations: ['users'],
     });
+
+    let imageUrls = [];
+
+    const listObjectsParams = {
+      Bucket: process.env.AWS_BUCKET_NAME,
+      Prefix: `user/${userId}/`, 
+    };
+
+    const command = new ListObjectsV2Command(listObjectsParams);
+    const { Contents } = await s3Client.send(command);
+
+    if (Contents && Contents.length > 0) {
+      imageUrls = Contents.map((file) => {
+        return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${file.Key}`;
+      });
+
+      console.log('All image URLs:', imageUrls);
+    } else {
+      console.log('No images found for this user');
+    }
 
     return {
       user: response,
-      products: userProducts, 
+      imageUrls,  
+      products: userProducts,
     };
-    
   } catch (error) {
     console.error('Error retrieving user from Cognito:', error);
     throw new Error('Failed to retrieve user from Cognito');
   }
-
 }
 
 
@@ -433,15 +464,10 @@ async findUserById(username: string): Promise<any> {
 
 
 
-  // // Function for updating a user by id
-  async update(id: string, _updateUserDto: UpdateUserDto): Promise<User> {
 
+  // Function for updating a user by id
+  async update(username: string, _updateUserDto: UpdateUserDto): Promise<User> {
     try {
-      const user = await this.findUserById(id);
-      console.log(`User with given id ${id} is: `, user);
-
-      if (!user)
-        throw new NotFoundException(`User with given id ${id} not found`);
 
       const userAttributes = [];
 
@@ -457,14 +483,6 @@ async findUserById(username: string): Promise<any> {
         userAttributes.push({
           Name: 'email',
           Value: String(_updateUserDto.email),
-        });
-      }
-
-
-      if (_updateUserDto.role) {
-        userAttributes.push({
-          Name: 'custom:role',
-          Value: String(_updateUserDto.role),
         });
       }
 
@@ -485,6 +503,11 @@ async findUserById(username: string): Promise<any> {
       }
 
 
+      if (_updateUserDto.password) {
+        await this.resetPassword(username, _updateUserDto.password);
+      }
+
+
       if (userAttributes.length === 0) {
         throw new ConflictException('No attributes to update');
       }
@@ -492,25 +515,21 @@ async findUserById(username: string): Promise<any> {
 
       const params = {
         UserPoolId: process.env.COGNITO_USER_POOL_ID,
-        Username: id,
+        Username: username,
         UserAttributes: userAttributes,
       };
 
+
       const command = new AdminUpdateUserAttributesCommand(params);
       const response = await cognito.send(command);
-      console.log(`User with id ${id} updated successfully`, response);
 
-      if (_updateUserDto.password) {
-        await this.resetPassword(id, _updateUserDto.password);
-      }
-
-      return user;
+      console.log(`User with username ${username} updated successfully`, response);
+      return;
 
     } catch (error) {
       console.error('Error updating user', error);
       throw error;
     }
-
   }
 
 
@@ -519,8 +538,7 @@ async findUserById(username: string): Promise<any> {
 
 
   // Function for deleting a user by id
-  async remove(id: string): Promise<void
-  > {
+  async remove(id: string): Promise<void> {
 
     try {
       const params = {
@@ -624,7 +642,7 @@ async findUserById(username: string): Promise<any> {
         Username: username,
         UserPoolId: _userPoolId,
         Password: newPassword,
-        Permanent: true,  // Make sure the password reset is permanent
+        Permanent: true,
       });
 
       await this.cognito.send(resetCommand);
@@ -646,7 +664,7 @@ async findUserById(username: string): Promise<any> {
   private async resetPassword(id: string, newPassword: string): Promise<void> {
 
     try {
-      const hashedPassword = await bcrypt.hash(newPassword, 10); // Hash the password before setting it
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
 
       const params = {
         UserPoolId: process.env.COGNITO_USER_POOL_ID,

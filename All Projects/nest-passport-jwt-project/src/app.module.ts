@@ -8,6 +8,7 @@ import { Product } from './products/entities/product.entity';
 import { User } from './users/entities/user.entity';
 import { AdminModule } from './admin/admin.module';
 import { Admin } from './admin/entities/admin.entity';
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
@@ -26,47 +27,23 @@ import { Admin } from './admin/entities/admin.entity';
         password: "4SrRUHtLARTOGSOh",
         database: "postgres",
         synchronize: false,
-        entities: [User, Product, Admin], 
+        entities: [User, Product, Admin],
       }),
       inject: [ConfigService],
     }),
     AuthModule,
     UsersModule,
     ProductsModule,
-    // AdminModule,
   ],
-  controllers: [],
+ 
+  controllers: [AppController],
   providers: [],
 })
+
 export class AppModule {}
 
 
 
 
 
-// @Module({
-//   imports: [
-//     TypeOrmModule.forRootAsync({
-//       imports: [ConfigModule.forRoot({
-//         isGlobal: true,
-//         // envFilePath: ".local.env",
-//         // envFilePath: ".prod.env",
-//       })],
-//       useFactory: (configService: ConfigService) => ({
-//         type: 'postgres',
-//         host: 'aws-0-ap-southeast-1.pooler.supabase.com',  //configService.get('DB_HOST')  ||,
-//         port:  6543, // +configService.get<number>('DB_PORT') ||,
-//         username:  'postgres.iwzablpjorjvsetzogtn', //configService.get('DB_USERNAME') || //postgres.iwzablpjorjvsetzogtn
-//         password:  'postgres', //configService.get('DB_PASSWORD') ||,
-//         database:  'postgres',//configService.get('DB_DATABASE') ||
-//         synchronize: true,// configService.get<boolean>('DB_SYNC') ||
-//       }),
-//       inject: [ConfigService],
-//     }),
-//     AuthModule
-//   ],
-//   controllers: [],
-//   providers: [],
-// })
-// export class AppModule {}
 

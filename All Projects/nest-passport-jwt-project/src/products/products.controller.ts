@@ -12,6 +12,7 @@ import {
   InternalServerErrorException,
   UseGuards,
   Req,
+  ForbiddenException,
 } from '@nestjs/common';
 
 import {
@@ -101,7 +102,7 @@ export class ProductsController {
       return product;
     } catch (error) {
       console.error('Error creating the product', error.message);
-      throw error;
+      throw new ForbiddenException('Only superAdmin can create the product for user'); 
     }
     
   }

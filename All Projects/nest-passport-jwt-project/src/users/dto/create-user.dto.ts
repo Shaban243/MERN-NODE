@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsEmail,
@@ -10,10 +11,6 @@ import {
 } from 'class-validator';
 import { Role } from 'src/auth/roles.enum';
 
-// export enum ERoles {
-//   Admin = 'admin',
-//   User = 'user',
-// }
 
 export interface UserInterface {
   name: string;
@@ -25,7 +22,7 @@ export interface UserInterface {
 }
 
 export class CreateUserDto {
-
+  @ApiProperty()
   @IsNotEmpty()
   @IsString()
   name: string;
@@ -33,6 +30,7 @@ export class CreateUserDto {
   @IsNotEmpty()
   @IsString()
   @IsEmail()
+  @ApiProperty()
   email: string;
 
   @IsNotEmpty()
@@ -41,18 +39,22 @@ export class CreateUserDto {
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/, {
     message: 'Password must include at least 1 uppercase, 1 lowercase, 1 number, and 1 special character',
   })
+  @ApiProperty()
   password: string;
 
   @IsNotEmpty()
   @IsString()
+  @ApiProperty()
   address: string;
 
   @IsOptional()
   // @IsBoolean()
+  @ApiProperty({default:true})
   isActive: boolean;
 
   @IsOptional()
   @IsEnum(Role)
+  @ApiProperty()
   role: Role;
 }
 

@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
 
 export interface LoginInterface {
@@ -6,6 +7,7 @@ export interface LoginInterface {
 }
 
 export class LoginDto implements LoginInterface {
+  @ApiProperty()
   @IsNotEmpty()
   @IsEmail()
   @IsString()
@@ -13,5 +15,6 @@ export class LoginDto implements LoginInterface {
 
   @IsNotEmpty()
   @IsString()
+  @ApiProperty()
   password: string;
 }

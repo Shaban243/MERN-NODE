@@ -52,14 +52,12 @@ export class AdminService {
   async createAdmin(createAdminDto: CreateAdminDto): Promise<Admin> {
 
     try {
-      console.log('Role being searched for:', createAdminDto.role); 
 
       const existingAdmin = await this.getCognitoUserByRole(createAdminDto.role);
-      console.log('Existing admins with this role:', existingAdmin);
 
 
       if (
-        ( createAdminDto.role === Role.SuperAdmin ||createAdminDto.role === Role.UserAssistantAdmin || createAdminDto.role === Role.ProductAssistantAdmin) &&
+        (createAdminDto.role === Role.SuperAdmin || createAdminDto.role === Role.UserAssistantAdmin || createAdminDto.role === Role.ProductAssistantAdmin) &&
         existingAdmin
       ) {
         throw new ConflictException(`A ${createAdminDto.role} already exists and cannot be created again.`);
@@ -164,7 +162,6 @@ export class AdminService {
         UserPoolId: process.env.COGNITO_USER_POOL_ID,
       };
 
-      console.log('Fetching admins with specific roles...');
 
       const response: ListUsersCommandOutput = await this.cognito.send(new ListUsersCommand(params));
 
@@ -216,10 +213,10 @@ export class AdminService {
 
       const role = response.UserAttributes?.find(attr => attr.Name === 'custom:role')?.Value as Role;
 
-      
+
       if (role === Role.SuperAdmin) {
         throw new ForbiddenException('Access to super admin is not allowed!');
-    }
+      }
 
       return {
         id: response.Username || '',
@@ -303,14 +300,14 @@ export class AdminService {
 
 
       const updatedAdmin = await this.getAdminById(id);
-        return {
-          id: updatedAdmin.id,
-          name: updateAdminDto.name || updatedAdmin.name, 
-          email: updateAdminDto.email || updatedAdmin.email,
-          address: updateAdminDto.address || updatedAdmin.address,
-          isActive: updateAdminDto.isActive !== undefined ? updateAdminDto.isActive : updatedAdmin.isActive,
-          role: updateAdminDto.role || updatedAdmin.role,
-        }
+      return {
+        id: updatedAdmin.id,
+        name: updateAdminDto.name || updatedAdmin.name,
+        email: updateAdminDto.email || updatedAdmin.email,
+        address: updateAdminDto.address || updatedAdmin.address,
+        isActive: updateAdminDto.isActive !== undefined ? updateAdminDto.isActive : updatedAdmin.isActive,
+        role: updateAdminDto.role || updatedAdmin.role,
+      }
     } catch (error) {
       console.error('Error updating user', error);
       throw error;

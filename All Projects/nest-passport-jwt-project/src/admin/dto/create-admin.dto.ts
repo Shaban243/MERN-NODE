@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import {
     IsBoolean,
     IsEmail,
@@ -12,15 +13,18 @@ import { Role } from 'src/auth/roles.enum';
 
 export class CreateAdminDto {
 
+    @ApiProperty()
     @IsNotEmpty()
     @IsString()
     name: string;
 
+    @ApiProperty()
     @IsNotEmpty()
     @IsString()
     @IsEmail()
     email: string;
 
+    @ApiProperty()
     @IsNotEmpty()
     @IsString()
     @MinLength(8)
@@ -30,14 +34,17 @@ export class CreateAdminDto {
     })
     password: string;
 
+    @ApiProperty()
     @IsNotEmpty()
     @IsString()
     address: string;
 
+    @ApiProperty()
     @IsOptional()
     // @IsBoolean()
     isActive: boolean;
 
+    @ApiProperty()
     @IsOptional()
     // @IsNotEmpty()
     @IsEnum(Role)

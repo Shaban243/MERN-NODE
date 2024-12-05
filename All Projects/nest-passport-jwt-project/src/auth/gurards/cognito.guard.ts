@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Observable } from 'rxjs';
-import * as jwt from 'jsonwebtoken'; // Correct import
+import * as jwt from 'jsonwebtoken'; 
 import {
   CognitoIdentityProviderClient,
   GetUserCommand,
@@ -26,7 +26,6 @@ export class CognitoAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const token = request.headers['authorization']?.replace('Bearer ', '');
 
-    console.log('token:', token);
     if (!token) {
       throw new ForbiddenException('Token is missing');
     }
@@ -46,7 +45,6 @@ export class CognitoAuthGuard implements CanActivate {
         return acc;
       }, {});
 
-      console.log({ userInfo });
       request.user = { id: response.Username, ...userInfo };
       return true;
       

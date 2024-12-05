@@ -1,12 +1,13 @@
-import { Inject, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Product } from './entities/product.entity';
-import { In, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import { User } from 'src/users/entities/user.entity';
 import { AdminGetUserCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { cognito } from 'config/aws.config';
+import { Role } from 'src/auth/roles.enum';
 
 
 
@@ -17,8 +18,8 @@ export class ProductsService {
     @InjectRepository(Product)
     private readonly productsRepository: Repository<Product>,
 
-    @InjectRepository(User)
-    private readonly usersRepository: Repository<User>,
+    // @InjectRepository(User)
+    // private readonly usersRepository: Repository<User>,
 
   ) { }
 
@@ -26,45 +27,53 @@ export class ProductsService {
 
 
 
- // Function for adding products to a user
-async createProductForUser(createProductDto: CreateProductDto, username: string): Promise<Product> {
-  
-  try {
-    const params = {
-      UserPoolId: process.env.COGNITO_USER_POOL_ID,  
-      Username: username,  
-    };
+  // Function for adding products to a user
+  async createProductForUser(createProductDto: CreateProductDto, username: string): Promise<Product> {
 
-    
-    const command = new AdminGetUserCommand(params);
-    const response = await cognito.send(command);
+    try {
+      const params = {
+        UserPoolId: process.env.COGNITO_USER_POOL_ID,
+        Username: username,
+      };
 
-    if (!response) {
-      throw new NotFoundException(`User with username ${username} not found in Cognito`);
+
+      const command = new AdminGetUserCommand(params);
+      const response = await cognito.send(command);
+
+      if (!response) {
+        throw new NotFoundException(`User with username ${username} not found in Cognito`);
+      }
+
+      const userId = response.UserAttributes.find(attr => attr.Name === 'sub')?.Value;
+
+      if (!userId) {
+        throw new NotFoundException(`User's 'sub' ID not found in Cognito`);
+      }
+
+      const role = response.UserAttributes.find(attr => attr.Name === 'custom:role')?.Value;
+
+
+      if (role !== Role.SuperAdmin) {
+        throw new ForbiddenException('Only superAdmin can create the product for user');
+      }
+
+      const product = this.productsRepository.create({
+        ...createProductDto,
+        userId,
+      });
+
+      const savedProduct = await this.productsRepository.save(product);
+
+      console.log('Saved Product:', savedProduct);
+
+      return savedProduct;
+    } catch (error) {
+      console.error('Error creating the product:', error.message);
+      throw new ForbiddenException('Only superAdmin can create the product for user');
     }
 
-    const userId = response.UserAttributes.find(attr => attr.Name === 'sub')?.Value;
-
-    if (!userId) {
-      throw new NotFoundException(`User's 'sub' ID not found in Cognito`);
-    }
-
-    const product = this.productsRepository.create({
-      ...createProductDto,
-      userId, 
-    });
-
-    const savedProduct = await this.productsRepository.save(product);
-
-    console.log('Saved Product:', savedProduct);
-
-    return savedProduct;
-  } catch (error) {
-    console.error('Error creating the product:', error.message);
-    throw error; 
   }
 
-}
 
 
 
@@ -79,8 +88,7 @@ async createProductForUser(createProductDto: CreateProductDto, username: string)
 
 
 
-
-  // function for posting a new Product
+  // function for creating a new Product
   async createProduct(_createProductDto: CreateProductDto): Promise<Product> {
 
     try {
@@ -145,34 +153,65 @@ async createProductForUser(createProductDto: CreateProductDto, username: string)
 
 
 
-  
-  
-  
-  
- 
- // Function for getting a product by id with user details
-// function for getting a product by id
-async findOne(id: string): Promise<Product> {
 
-  try {
 
-    const product = await this.productsRepository.findOne({
-      where: { id },
-      relations: ['users'],
-    });
 
-    if (!product) throw new NotFoundException(`Product with given id ${id} not found!`);
+  // Function for getting product data with user details
 
-    console.log(`Product with given id ${id} is:` , product);
+  async findOne(id: string): Promise<any> {
+    try {
 
-    return product;
+      const product = await this.productsRepository.findOne({
+        where: { id },
+        relations: ['users'],
+      });
 
-  } catch (error) {
-    console.error('Error finding product:', error);
-    throw error;
+      if (!product) {
+        throw new NotFoundException(`Product with given id ${id} not found!`);
+      }
+
+      console.log(`Product found:`, product);
+
+      // const userId = product?.userId; 
+      // console.log('User Id is: ', userId);
+
+      // if (!userId) {
+      //   throw new NotFoundException(`No associated userId found for product with id ${id}`);
+      // }
+
+      // const cognitoParams = {
+      //   UserPoolId: process.env.COGNITO_USER_POOL_ID,
+      //   Username: userId,  
+      // };
+
+      // const cognitoCommand = new AdminGetUserCommand(cognitoParams);
+      // const cognitoResponse = await cognito.send(cognitoCommand);
+
+      // console.log('Cognito Response is: ', cognitoResponse);
+
+      // if (!cognitoResponse || !cognitoResponse.UserAttributes) {
+      //   throw new NotFoundException(`User with sub-id ${userId} does not exist in Cognito.`);
+      // }
+
+
+      // const user = cognitoResponse.UserAttributes.reduce((acc, attr) => {
+      //   acc[attr.Name] = attr.Value;
+      //   return acc;
+      // }, {});
+
+
+      return {
+        product: product,
+        // user: user,       
+      };
+
+    } catch (error) {
+      console.error('Error finding product and user:', error);
+      throw error;
+    }
   }
 
-}
+
 
 
 

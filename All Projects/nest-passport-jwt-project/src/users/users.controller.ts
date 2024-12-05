@@ -168,11 +168,9 @@ export class UsersController {
 
   // Route for uploading user image
   @Post(':id/uploadimage')
-  @UseGuards(CognitoAuthGuard, RolesGuard)
-  @Roles([Role.SuperAdmin, Role.UserAssistantAdmin])
   @UseInterceptors(FileInterceptor('file'))
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Upload an image for a specific user (Super-Admin access && Users-Assistant Admin access)' })
+  // @ApiBearerAuth()
+  @ApiOperation({ summary: 'Upload an image for a specific user' })
   @ApiConsumes('multipart/form-data')
   @ApiParam({
     name: 'id',
@@ -252,9 +250,9 @@ export class UsersController {
 
   // Route for updating user by id
   @Put('updateUser/:id')
-  @ApiBearerAuth()
-  @UseGuards(CognitoAuthGuard, RolesGuard)
-  @Roles([Role.SuperAdmin, Role.UserAssistantAdmin])
+  // @ApiBearerAuth()
+  // @UseGuards(CognitoAuthGuard, RolesGuard)
+  // @Roles([Role.SuperAdmin, Role.UserAssistantAdmin, Role.User])
   @ApiOperation({ summary: 'Update a specific user by ID (Super-Admin access && Users-Assistant Admin access)' })
   @ApiParam({ name: 'id', description: 'User ID to update', type: String })
   @ApiBody({ type: UpdateUserDto })
