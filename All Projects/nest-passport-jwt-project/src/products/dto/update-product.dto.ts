@@ -11,7 +11,7 @@ export class UpdateProductDto extends PartialType(CreateProductDto) {
   @IsNotEmpty()
   name: string;
 
-   @ApiProperty()
+  @ApiProperty()
   @IsString()
   @IsOptional()
   description: string;

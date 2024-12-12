@@ -50,12 +50,14 @@ export class ProductsService {
         throw new NotFoundException(`User's 'sub' ID not found in Cognito`);
       }
 
-      const role = response.UserAttributes.find(attr => attr.Name === 'custom:role')?.Value;
+      const userRole = response.UserAttributes.find(attr => attr.Name === 'custom:role')?.Value;
+
+      console.log('User Role:', userRole);
 
 
-      if (role !== Role.SuperAdmin) {
-        throw new ForbiddenException('Only superAdmin can create the product for user');
-      }
+      // if (role !== Role.SuperAdmin) {
+      //   throw new ForbiddenException('Only superAdmin can create the product for user');
+      // }
 
       const product = this.productsRepository.create({
         ...createProductDto,
@@ -221,25 +223,29 @@ export class ProductsService {
 
 
   // function for Updating a Product by id
-  async update(id: string, _updateProductDto: UpdateProductDto): Promise<Product> {
+  async update(productId: string, _updateProductDto: UpdateProductDto): Promise<any> {
 
-    try {
-
-      const product = await this.findOne(id);
-      console.log(`Product with given id ${id} is: `, product);
-
-      if (!product) throw new NotFoundException(`Product with given id ${id} not found!`);
-      const updatedProduct = Object.assign(product, _updateProductDto);
-
-      console.log(`Updated Product with given id ${id} is: `, updatedProduct);
-      return this.productsRepository.save(updatedProduct);
-
-    } catch (error) {
-      console.error('Error updating product:', error);
-      throw error;
+    const product = await this.productsRepository.findOne({ where: { id: productId } });
+  
+    if (!product) {
+      throw new NotFoundException(`Product with id ${productId} not found`);
     }
+    
+    const result = await this.productsRepository.update(productId, _updateProductDto);
+  
+    if (result.affected === 0) {
+      throw new NotFoundException(`Product with id ${productId} not found`);
+    }
+  
+    const updatedProduct = await this.productsRepository.findOne({ where: { id: productId } });
+    console.log(`Product with id ${productId} updated successfully.`);
 
+    return { 
+      message: `Product with given id ${productId} updated successfully!`,
+      product: updatedProduct
+    };
   }
+  
 
 
 
