@@ -6,8 +6,10 @@ import {
   AdminSetUserPasswordCommand,
   AdminUpdateUserAttributesCommand,
   CognitoIdentityProviderClient,
+  ConfirmSignUpCommand,
   ListUsersCommand,
-  ListUsersCommandOutput
+  ListUsersCommandOutput,
+  SignUpCommand
 } from '@aws-sdk/client-cognito-identity-provider';
 
 import {
@@ -49,7 +51,9 @@ export class AdminService {
 
 
   // Create admin
-  async createAdmin(createAdminDto: CreateAdminDto): Promise<Admin> {
+  async registerAdmin(createAdminDto: CreateAdminDto): Promise<any> {
+
+    const { email, password, name, address, isActive, role } = createAdminDto;
 
     try {
 
@@ -82,31 +86,28 @@ export class AdminService {
 
       const params = {
         UserPoolId: process.env.COGNITO_USER_POOL_ID,
-        Username: `admin-${Date.now()}`,
-        TemporaryPassword: createAdminDto.password,
+        ClientId: process.env.COGNITO_CLIENT_ID,
+        Username: email,
+        Password: password,
         UserAttributes: [
           { Name: 'name', Value: createAdminDto.name },
           { Name: 'email', Value: createAdminDto.email },
-          { Name: 'email_verified', Value: 'true' },
+          { Name: 'address', Value: createAdminDto.address },
           { Name: 'custom:address', Value: String(createAdminDto.address) },
           { Name: 'custom:isActive', Value: createAdminDto.isActive ? '1' : '0' },
           { Name: 'custom:role', Value: createAdminDto.role },
         ],
       };
 
-      const createdAdmin = await this.cognito.send(
-        new AdminCreateUserCommand(params));
-      console.log('Admin successfully created:', createdAdmin);
+      // const createdAdmin = await this.cognito.send(
+      //   new AdminCreateUserCommand(params));
+      // console.log('Admin successfully created:', createdAdmin);
 
-      return {
-        id: createdAdmin.User?.Username ?? '',
-        name: createAdminDto.name,
-        email: createAdminDto.email,
-        role: createAdminDto.role,
-        password: createAdminDto.password,
-        address: createAdminDto.address ?? '',
-        isActive: createAdminDto.isActive ?? true,
-      };
+      const signUpCommand = new SignUpCommand(params);
+      const signUpResponse = await this.cognito.send(signUpCommand);
+
+      return { message: 'Registration successful. Please check your email to verify your account!' };
+
     } catch (error) {
       console.error('Error creating admin:', error.message || error);
       throw new Error('Error creating admin: ' + error.message || error);
@@ -132,6 +133,7 @@ export class AdminService {
 
       const params = {
         UserPoolId: process.env.COGNITO_USER_POOL_ID,
+        ClientId: process.env.COGNITO_CLIENT_ID,
       };
 
       const result = await this.cognito.send(new ListUsersCommand(params));
@@ -146,6 +148,55 @@ export class AdminService {
       throw new Error('Error fetching users by role: ' + error.message);
     }
   }
+
+
+
+
+
+
+
+
+
+
+
+  // Route for confirming the admin email
+  async confirmEmail(email: string, confirmationCode: string): Promise<any> {
+
+    const params = {
+      ClientId: process.env.COGNITO_CLIENT_ID,
+      Username: email,
+      ConfirmationCode: confirmationCode,
+
+    };
+
+    try {
+
+      console.log('Printing');
+
+      const confirmSignUpCommand = new ConfirmSignUpCommand(params);
+      console.log('ConfirmSignUpCommand is: ', confirmSignUpCommand);
+      const response = await this.cognito.send(confirmSignUpCommand);
+
+      console.log('Response from cognito confirmsignupCommand is: ', response);
+
+
+      return { message: 'Email confirmed successfully!' };
+    } catch (error) {
+
+      console.error('Error confirming email:', error);
+      console.error('Detailed error:', JSON.stringify(error, null, 2));
+
+      if (error.name === 'ExpiredCodeException') {
+        throw new error('The confirmation code has expired. Please request a new code!');
+      } else if (error.name === 'CodeMismatchException') {
+        throw new Error('The confirmation code is incorrect. Please check the code and try again.');
+      }
+
+      throw new Error('Email confirmation failed due to an unexpected error.');
+    }
+
+  }
+
 
 
 

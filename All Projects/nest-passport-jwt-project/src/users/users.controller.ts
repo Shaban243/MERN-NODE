@@ -40,6 +40,7 @@ import { Role } from 'src/auth/roles.enum';
 import { CognitoAuthGuard } from 'src/auth/gurards/cognito.guard';
 import { Roles } from 'src/auth/gurards/roles.decorator';
 import { ConfirmUserDto } from './dto/confirm-user.dto';
+import { ConfirmEmailDto } from './dto/confirm-email.dto';
 
 
 
@@ -78,6 +79,39 @@ export class UsersController {
 
 
 
+  // Route for confirming the user email
+  @Post('confirm-email/:email')
+  @ApiOperation({ summary: 'Cofirming the user email through email verification code' })
+  @ApiParam({
+    name: 'email',
+    description: 'Confirm User email',
+    type: String,
+  })
+
+  @ApiResponse({ status: 200, description: 'User email verified successfully' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+
+  async confirmEmail(
+    @Param('email') email: string, 
+    @Body() confirmEmailDto: ConfirmEmailDto) {
+
+    try {
+      const emailStatus = this.usersService.confirmEmail(email, confirmEmailDto.confirmationCode);
+      return emailStatus;
+      
+    } catch (error) {
+      console.error('Error confirming the user email', error.message);
+      throw new InternalServerErrorException('Error confirming the user email');
+    }
+
+  }
+
+
+
+
+
+
+
 
   // Login route
   @Post('login')
@@ -95,34 +129,6 @@ export class UsersController {
     } catch (error) {
       console.error('Error during login:', error.message);
       throw new InternalServerErrorException('Login failed');
-    }
-
-  }
-
-  
-
-
-
-
-  // Route for creating a new user (admin-only access)
-  @Post('createUser')
-  @ApiBearerAuth()
-  @UseGuards(CognitoAuthGuard, RolesGuard)
-  @Roles([Role.SuperAdmin, Role.UserAssistantAdmin])
-  // @UsePipes(new ValidationPipe())
-  @ApiOperation({ summary: 'Create a new user (Super-Admin access && Users-Assistant Admin access)' })
-  @ApiBody({ type: CreateUserDto })
-  @ApiResponse({ status: 201, description: 'User created successfully' })
-  @ApiResponse({ status: 500, description: 'Failed to create user' })
-
-  async createUser(@Body() createUserDto: CreateUserDto)   {
-
-    try {
-      const createdUser = await this.usersService.createUser(createUserDto);
-      return createdUser;
-    } catch (error) {
-      console.error('Error creating user:', error.message);
-      throw new InternalServerErrorException('Failed to create user');
     }
 
   }
@@ -221,21 +227,20 @@ export class UsersController {
 
 
   // Route for getting user by id (admin-only access)
-  @Get('getUser/:id')
+  @Get('getUser/:username')
   @ApiBearerAuth()
   @UseGuards(CognitoAuthGuard, RolesGuard)
   @Roles([Role.SuperAdmin, Role.UserAssistantAdmin])
-  @ApiOperation({ summary: 'Get details of a specific user by ID (Super-Admin access && Users-Assistant Admin access)' })
-  @ApiParam({ name: 'id', description: 'User ID to retrieve details', type: String })
+  @ApiOperation({ summary: 'Get details of a specific user by username (Super-Admin access && Users-Assistant Admin access)' })
   @ApiResponse({ status: 200, description: 'User details retrieved successfully' })
   @ApiResponse({ status: 404, description: 'User not found' })
-  async findOne(@Param('id') id: string): Promise<User>   {
+  async findOne(@Param('username') username: string): Promise<User>   {
 
     try {
-      const user = await this.usersService.findUserById(id);
+      const user = await this.usersService.findUserById(username);
       return user;
     } catch (error) {
-      console.error(`Error finding the user with id ${id}`, error.message);
+      console.error(`Error finding the user with id ${username}`, error.message);
       throw error;
     }
     
@@ -249,23 +254,23 @@ export class UsersController {
 
 
   // Route for updating user by id
-  @Put('updateUser/:id')
+  @Put('updateUser/:username')
   // @ApiBearerAuth()
   // @UseGuards(CognitoAuthGuard, RolesGuard)
   // @Roles([Role.SuperAdmin, Role.UserAssistantAdmin, Role.User])
-  @ApiOperation({ summary: 'Update a specific user by ID (Super-Admin access && Users-Assistant Admin access)' })
-  @ApiParam({ name: 'id', description: 'User ID to update', type: String })
+  @ApiOperation({ summary: 'Update a specific user by username (Super-Admin access && Users-Assistant Admin access && User-access)' })
+  @ApiParam({ name: 'username', description: 'User-Name to update', type: String })
   @ApiBody({ type: UpdateUserDto })
   @ApiResponse({ status: 200, description: 'User updated successfully' })
   @ApiResponse({ status: 404, description: 'User not found' })
   
-  async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto)   {
+  async update(@Param('username') username: string, @Body() updateUserDto: UpdateUserDto)   {
 
     try {
-      const updatedUser = await this.usersService.update(id, updateUserDto);
+      const updatedUser = await this.usersService.update(username, updateUserDto);
       return updatedUser;
     } catch (error) {
-      console.error(`Error updating user with id ${id}`, error.message);
+      console.error(`Error updating user with id ${username}`, error.message);
       throw error;
     }
 
@@ -278,23 +283,23 @@ export class UsersController {
 
 
   // Route for deleting a user by id (admin-only access)
-  @Delete('deleteUser/:id')
+  @Delete('deleteUser/:username')
   @ApiBearerAuth()
   @UseGuards(CognitoAuthGuard, RolesGuard)
   @Roles([Role.SuperAdmin, Role.UserAssistantAdmin])
-  @ApiOperation({ summary: 'Delete a specific user by ID (Super-Admin access && Users-Assistant Admin access)' })
-  @ApiParam({ name: 'id', description: 'User ID to delete', type: String })
+  @ApiOperation({ summary: 'Delete a specific user by username (Super-Admin access && Users-Assistant Admin access)' })
+  @ApiParam({ name: 'username', description: 'User username to delete', type: String })
   @ApiResponse({ status: 200, description: 'User deleted successfully' })
   @ApiResponse({ status: 404, description: 'User not found' })
 
-  async remove(@Param('id') id: string)    {
+  async remove(@Param('username') username: string)    {
 
     try {
-      const deletedUser = await this.usersService.remove(id);
+      const deletedUser = await this.usersService.remove(username);
       console.log('deletedUser is: ', deletedUser);
       return deletedUser;
     } catch (error) {
-      console.error(`Error deleting the user with id ${id}`, error.message);
+      console.error(`Error deleting the user with id ${username}`, error.message);
       throw error;
     }
 
@@ -307,39 +312,39 @@ export class UsersController {
 
 
 
-  // Route for setting the confirmation status to confirmed
-  @Post('confirm/:username')
-  @ApiOperation({ summary: 'Confirm the confirmation status of user (Super-Admin access && Users-Assistant Admin access)' })
-  @ApiParam({
-    name: 'username',
-    description: 'Confirm User Status',
-    type: String,
-  })
-  @ApiBearerAuth()
-  @ApiResponse({ status: 200, description: 'User Confirmation status successfully confirmed' })
-  @ApiResponse({ status: 404, description: 'User not found' })
-  async confirmUser(
-    @Param('username') username: string,
-    @Body() confirmUserInput: ConfirmUserDto,
-  )    {
+  // // Route for setting the confirmation status to confirmed
+  // @Post('confirm/:username')
+  // @ApiOperation({ summary: 'Confirm the confirmation status of user (Super-Admin access && Users-Assistant Admin access)' })
+  // @ApiParam({
+  //   name: 'username',
+  //   description: 'Confirm User Status',
+  //   type: String,
+  // })
+  // @ApiBearerAuth()
+  // @ApiResponse({ status: 200, description: 'User Confirmation status successfully confirmed' })
+  // @ApiResponse({ status: 404, description: 'User not found' })
+  // async confirmUser(
+  //   @Param('username') username: string,
+  //   @Body() confirmUserInput: ConfirmUserDto,
+  // )    {
 
-    try {
-      const userPoolId = process.env.COGNITO_USER_POOL_ID;
-      const { newPassword } = confirmUserInput;
-      await this.usersService.confirmUserSignup(
-        username,
-        newPassword,
-        userPoolId,
-      );
+  //   try {
+  //     const userPoolId = process.env.COGNITO_USER_POOL_ID;
+  //     const { newPassword } = confirmUserInput;
+  //     await this.usersService.confirmUserSignup(
+  //       username,
+  //       newPassword,
+  //       userPoolId,
+  //     );
 
       
-      return { message: 'User confirmation successful.' };
-    } catch (error) {
-      console.error('Error confirming the status for user', error.message);
-      throw error;
-    }
+  //     return { message: 'User confirmation successful.' };
+  //   } catch (error) {
+  //     console.error('Error confirming the status for user', error.message);
+  //     throw error;
+  //   }
 
-  }
+  // }
 
 
 }

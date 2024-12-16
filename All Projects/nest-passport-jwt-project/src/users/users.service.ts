@@ -16,8 +16,8 @@ import {
   AdminUpdateUserAttributesCommand,
   AdminSetUserPasswordCommand,
   CognitoIdentityProviderClient,
-  AdminConfirmSignUpCommand,
   SignUpCommand,
+  ConfirmSignUpCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 
 import { CreateUserDto, UserInterface } from './dto/create-user.dto';
@@ -35,7 +35,7 @@ import { cognito_user_pool_id } from 'config/aws.config';
 import { CognitoUserPool } from 'amazon-cognito-identity-js';
 import { Role } from 'src/auth/roles.enum';
 import { GetObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
-
+import { config } from 'process';
 
 
 @Injectable()
@@ -52,8 +52,13 @@ export class UsersService {
 
     this.cognito = new CognitoIdentityProviderClient({
       region: 'ap-south-1',
-    });
 
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      },
+
+    });
 
 
   }
@@ -61,20 +66,28 @@ export class UsersService {
 
 
 
+
+  
+
+
+
   // Function for registering the user in cognito
   async registerUser(createUserDto: CreateUserDto): Promise<any> {
+
     const { email, password, name, address, isActive, role } = createUserDto;
-  
+
     if (createUserDto.role !== 'user') {
       throw new BadRequestException(
         `Invalid role: ${createUserDto.role}. Only users with the role "user" can be registered.`
       );
     }
-  
+
+
     const params = {
       UserPoolId: process.env.COGNITO_USER_POOL_ID,
       ClientId: process.env.COGNITO_CLIENT_ID,
-      Username: `user-${Date.now()}`,
+
+      Username: email,
       Password: password,
       UserAttributes: [
         { Name: 'name', Value: createUserDto.name },
@@ -84,31 +97,68 @@ export class UsersService {
         { Name: 'custom:isActive', Value: createUserDto.isActive ? '1' : '0' },
         { Name: 'custom:role', Value: createUserDto.role },
       ],
+      
     };
-  
+
     try {
 
       const signUpCommand = new SignUpCommand(params);
       const signUpResponse = await this.cognito.send(signUpCommand);
-  
-      const adminUpdateParams = {
-        UserPoolId: process.env.COGNITO_USER_POOL_ID,
-        Username: params.Username,
-        UserAttributes: [
-          { Name: 'email_verified', Value: 'true' }, 
-        ],
-      };
-  
-      const updateCommand = new AdminUpdateUserAttributesCommand(adminUpdateParams);
-      await this.cognito.send(updateCommand);
-  
-      return { message: 'Registration successful.' };
+
+      return { message: 'Registration successful. Please check your email to verify your account!' };
     } catch (error) {
       console.error('Error registering user:', error);
       console.error('Detailed error:', JSON.stringify(error, null, 2));
+
       throw new Error('Registration failed');
     }
+
   }
+
+
+
+
+
+
+
+  // Function for confirming the user email
+  async confirmEmail(email: string, confirmationCode: string): Promise<any> {
+
+    const params = {
+      ClientId: process.env.COGNITO_CLIENT_ID,
+      Username: email,
+      ConfirmationCode: confirmationCode,
+     
+    };
+
+    try {
+
+      console.log('Printing');
+
+      const confirmSignUpCommand = new ConfirmSignUpCommand(params);
+      console.log('ConfirmSignUpCommand is: ', confirmSignUpCommand);
+      const response = await this.cognito.send(confirmSignUpCommand);
+
+      console.log('Response from cognito confirmsignupCommand is: ', response);
+
+
+      return { message: 'Email confirmed successfully!' };
+    } catch (error) {
+
+      console.error('Error confirming email:', error);
+      console.error('Detailed error:', JSON.stringify(error, null, 2));
+
+      if (error.name === 'ExpiredCodeException') {
+        throw new error('The confirmation code has expired. Please request a new code!');
+      } else if (error.name === 'CodeMismatchException') {
+        throw new Error('The confirmation code is incorrect. Please check the code and try again.');
+      }
+
+      throw new Error('Email confirmation failed due to an unexpected error.');
+    }
+
+  }
+
 
 
 
@@ -219,66 +269,6 @@ export class UsersService {
   //     throw new Error('Error fetching users by role: ' + error.message);
   //   }
   // }
-
-
-
-
-
-
-  // // Function for creating a new user
-  async createUser(createUserDto: UserInterface): Promise<User> {
-
-    if (createUserDto.role !== 'user') {
-      throw new BadRequestException(
-        `Invalid role: ${createUserDto.role}. Only users with the role "user" can be created.`
-      );
-    }
-    const params = {
-      UserPoolId: process.env.COGNITO_USER_POOL_ID,
-      Username: `user-${Date.now()}`,
-      TemporaryPassword: createUserDto.password,
-      UserAttributes: [
-        { Name: 'name', Value: createUserDto.name },
-        { Name: 'email', Value: createUserDto.email },
-        { Name: 'email_verified', Value: 'true' },
-        { Name: 'custom:address', Value: String(createUserDto.address) },
-        { Name: 'custom:isActive', Value: createUserDto.isActive ? '1' : '0' },
-        { Name: 'custom:role', Value: createUserDto.role },
-      ],
-    };
-
-    console.log('Creating user with params:', JSON.stringify(params, null, 2));
-
-    try {
-
-      console.log('Sending request to Cognito to create user...');
-      const createdUser = await this.cognito.send(
-        new AdminCreateUserCommand(params),
-      );
-
-      console.log('Cognito User Created:', createdUser);
-
-      return {
-        id: createdUser.User?.Username ?? '',
-        name: createUserDto.name,
-        email: createUserDto.email,
-        role: createUserDto.role,
-        password: createUserDto.password,
-        address: createUserDto.address ?? '',
-        isActive: createUserDto.isActive ?? true,
-        image_url: '',
-        products: [],
-      };
-    } catch (error) {
-      console.error('Error during user creation:', error.message, error.stack);
-
-      throw new ConflictException(
-        'Error creating user in Cognito: ' + error.message,
-      );
-
-    }
-
-  }
 
 
 
@@ -397,67 +387,67 @@ export class UsersService {
 
 
 
- // Function for getting a user by username and their associated products
-async findUserById(username: string): Promise<any> {
+  // Function for getting a user by username and their associated products
+  async findUserById(username: string): Promise<any> {
 
-  const s3Client = new S3Client({
-    region: process.env.AWS_REGION,
-  });
-
-  try {
-    const params = {
-      UserPoolId: process.env.COGNITO_USER_POOL_ID,
-      Username: username,
-    };
-
-    const userCommand = new AdminGetUserCommand(params);
-    const response = await cognito.send(userCommand);
-
-    if (!response) {
-      throw new NotFoundException(`User with username ${username} not found in Cognito`);
-    }
-
-    const userId = response.UserAttributes.find(attr => attr.Name === 'sub')?.Value;
-
-    if (!userId) {
-      throw new NotFoundException(`User's 'sub' ID not found in Cognito`);
-    }
-
-    const userProducts = await this.productsRepository.find({
-      where: { userId },
-      relations: ['users'],
+    const s3Client = new S3Client({
+      region: process.env.AWS_REGION,
     });
 
-    let imageUrls = [];
+    try {
+      const params = {
+        UserPoolId: process.env.COGNITO_USER_POOL_ID,
+        Username: username,
+      };
 
-    const listObjectsParams = {
-      Bucket: process.env.AWS_BUCKET_NAME,
-      Prefix: `user/${userId}/`, 
-    };
+      const userCommand = new AdminGetUserCommand(params);
+      const response = await cognito.send(userCommand);
 
-    const command = new ListObjectsV2Command(listObjectsParams);
-    const { Contents } = await s3Client.send(command);
+      if (!response) {
+        throw new NotFoundException(`User with username ${username} not found in Cognito`);
+      }
 
-    if (Contents && Contents.length > 0) {
-      imageUrls = Contents.map((file) => {
-        return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${file.Key}`;
+      const userId = response.UserAttributes.find(attr => attr.Name === 'sub')?.Value;
+
+      if (!userId) {
+        throw new NotFoundException(`User's 'sub' ID not found in Cognito`);
+      }
+
+      const userProducts = await this.productsRepository.find({
+        where: { userId },
+        relations: ['users'],
       });
 
-      console.log('All image URLs:', imageUrls);
-    } else {
-      console.log('No images found for this user');
-    }
+      let imageUrls = [];
 
-    return {
-      user: response,
-      imageUrls,  
-      products: userProducts,
-    };
-  } catch (error) {
-    console.error('Error retrieving user from Cognito:', error);
-    throw new Error('Failed to retrieve user from Cognito');
+      const listObjectsParams = {
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Prefix: `user/${userId}/`,
+      };
+
+      const command = new ListObjectsV2Command(listObjectsParams);
+      const { Contents } = await s3Client.send(command);
+
+      if (Contents && Contents.length > 0) {
+        imageUrls = Contents.map((file) => {
+          return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${file.Key}`;
+        });
+
+        console.log('All image URLs:', imageUrls);
+      } else {
+        console.log('No images found for this user');
+      }
+
+      return {
+        user: response,
+        imageUrls,
+        products: userProducts,
+      };
+    } catch (error) {
+      console.error('Error retrieving user from Cognito:', error);
+      throw new Error('Failed to retrieve user from Cognito');
+    }
   }
-}
 
 
 
@@ -567,60 +557,35 @@ async findUserById(username: string): Promise<any> {
 
 
   // Function to confirm the user status in Cognito
-  async confirmUserSignup(
-    username: string,
-    newPassword: string,
-    _userPoolId: string,
-  ): Promise<void> {
+  // async confirmUserSignup(
+  //   username: string,
+  //   newPassword: string,
+  //   _userPoolId: string,
+  // ): Promise<void> {
 
-    try {
-      const userStatus = await this.getUserStatus(username, _userPoolId);
+  //   try {
+  //     const userStatus = await this.getUserStatus(username, _userPoolId);
 
-      if (userStatus === 'CONFIRMED') {
-        console.log(`User ${username} is already confirmed.`);
-        return;
-      }
+  //     if (userStatus === 'CONFIRMED') {
+  //       console.log(`User ${username} is already confirmed.`);
+  //       return;
+  //     }
 
-      if (userStatus === 'UNCONFIRMED') {
-        await this.resetUserPassword(username, newPassword, _userPoolId);
-        console.log(`User ${username} is now confirmed.`);
-      }
+  //     if (userStatus === 'UNCONFIRMED') {
+  //       await this.resetUserPassword(username, newPassword, _userPoolId);
+  //       console.log(`User ${username} is now confirmed.`);
+  //     }
 
-      if (userStatus === 'FORCE_CHANGE_PASSWORD') {
-        await this.resetUserPassword(username, newPassword, _userPoolId);
-        console.log(`User ${username} password reset due to FORCE_CHANGE_PASSWORD.`);
-      }
+  //     if (userStatus === 'FORCE_CHANGE_PASSWORD') {
+  //       await this.resetUserPassword(username, newPassword, _userPoolId);
+  //       console.log(`User ${username} password reset due to FORCE_CHANGE_PASSWORD.`);
+  //     }
 
-    } catch (error) {
-      console.error('Error confirming user:', error.message);
-      throw new Error('Error confirming user');
-    }
-  }
-
-
-
-
-
-
-
-  // Function to check if the user is in FORCE_CHANGE_PASSWORD or UNCONFIRMED state
-  async getUserStatus(username: string, _userPoolId: string): Promise<string> {
-
-    const command = new AdminGetUserCommand({
-      Username: username,
-      UserPoolId: _userPoolId,
-    });
-
-    try {
-
-      const data = await this.cognito.send(command);
-      return data.UserStatus ?? '';
-    } catch (error) {
-      console.error('Error fetching user status:', error.message);
-      throw new Error('Error fetching user status');
-    }
-
-  }
+  //   } catch (error) {
+  //     console.error('Error confirming user:', error.message);
+  //     throw new Error('Error confirming user');
+  //   }
+  // }
 
 
 
@@ -628,31 +593,56 @@ async findUserById(username: string): Promise<any> {
 
 
 
+  // // Function to check if the user is in FORCE_CHANGE_PASSWORD or UNCONFIRMED state
+  // async getUserStatus(username: string, _userPoolId: string): Promise<string> {
 
-  // Function for resetting the password of cognito user
-  async resetUserPassword(
-    username: string,
-    newPassword: string,
-    _userPoolId: string,
-  ): Promise<void> {
+  //   const command = new AdminGetUserCommand({
+  //     Username: username,
+  //     UserPoolId: _userPoolId,
+  //   });
 
-    try {
+  //   try {
 
-      const resetCommand = new AdminSetUserPasswordCommand({
-        Username: username,
-        UserPoolId: _userPoolId,
-        Password: newPassword,
-        Permanent: true,
-      });
+  //     const data = await this.cognito.send(command);
+  //     return data.UserStatus ?? '';
+  //   } catch (error) {
+  //     console.error('Error fetching user status:', error.message);
+  //     throw new Error('Error fetching user status');
+  //   }
 
-      await this.cognito.send(resetCommand);
-      console.log(`Password reset for user: ${username}`);
-    } catch (error) {
-      console.error('Error resetting password for user:', error.message);
-      throw new Error('Error resetting password');
-    }
+  // }
 
-  }
+
+
+
+
+
+
+
+  // // Function for resetting the password of cognito user
+  // async resetUserPassword(
+  //   username: string,
+  //   newPassword: string,
+  //   _userPoolId: string,
+  // ): Promise<void> {
+
+  //   try {
+
+  //     const resetCommand = new AdminSetUserPasswordCommand({
+  //       Username: username,
+  //       UserPoolId: _userPoolId,
+  //       Password: newPassword,
+  //       Permanent: true,
+  //     });
+
+  //     await this.cognito.send(resetCommand);
+  //     console.log(`Password reset for user: ${username}`);
+  //   } catch (error) {
+  //     console.error('Error resetting password for user:', error.message);
+  //     throw new Error('Error resetting password');
+  //   }
+
+  // }
 
 
 
@@ -687,4 +677,3 @@ async findUserById(username: string): Promise<any> {
 }
 
 
-  

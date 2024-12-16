@@ -73,13 +73,13 @@ export class ProductsController {
 
 
   // Route for create product for specific user
-  @Post('createProduct/:userId')
+  @Post('createProduct/:username')
   @ApiBearerAuth()
   @UseGuards(CognitoAuthGuard, RolesGuard)
   @Roles([Role.SuperAdmin])
   @ApiOperation({ summary: 'Create a new product for a specific user (Super-Admin)' })
   @ApiParam({
-    name: 'userId',
+    name: 'username',
     description: 'Product ID for whom the product is being created',
     type: String,
   })
@@ -89,14 +89,14 @@ export class ProductsController {
   @ApiResponse({ status: 500, description: 'Failed to create product for the user' })
 
   async createProductForUser(
-    @Param('userId') userId: string,
+    @Param('username') username: string,
     @Body() createProductDto: CreateProductDto,
   )   {
 
     try {
       const product = this.productsService.createProductForUser(
         createProductDto,
-        userId,
+        username,
       );
 
       return product;
