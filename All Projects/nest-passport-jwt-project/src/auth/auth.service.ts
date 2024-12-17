@@ -40,12 +40,6 @@ export class AuthService {
     const { email, password, name, address, isActive } = createUserDto;
 
 
-    if (createUserDto.role !== 'user') {
-      throw new BadRequestException(
-        `Invalid role: ${createUserDto.role}. Only users with the role "user" can be registered.`
-      );
-    }
-
     const params = {
       ClientId: process.env.COGNITO_CLIENT_ID,
       Username: `user-${Date.now()}`,
@@ -56,7 +50,6 @@ export class AuthService {
         { Name: 'address', Value: createUserDto.address },
         { Name: 'custom:address', Value: String(createUserDto.address) },
         { Name: 'custom:isActive', Value: createUserDto.isActive ? '1' : '0' },
-        { Name: 'custom:role', Value: createUserDto.role },
       ],
     };
 

@@ -1,4 +1,4 @@
-import { Inject, Injectable, InternalServerErrorException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -8,6 +8,7 @@ import { User } from 'src/users/entities/user.entity';
 import { AdminGetUserCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { cognito } from 'config/aws.config';
 import { Role } from 'src/auth/roles.enum';
+import { UploadService } from 'services/upload.service';
 
 
 
@@ -17,6 +18,8 @@ export class ProductsService {
   constructor(
     @InjectRepository(Product)
     private readonly productsRepository: Repository<Product>,
+
+    private readonly uploadService: UploadService,
 
     // @InjectRepository(User)
     // private readonly usersRepository: Repository<User>,
@@ -28,7 +31,11 @@ export class ProductsService {
 
 
   // Function for adding products to a user
-  async createProductForUser(createProductDto: CreateProductDto, username: string): Promise<Product> {
+  async createProductForUser(
+    createProductDto: CreateProductDto, 
+    username: string,
+    file: Express.Multer.File
+  ): Promise<any> {
 
     try {
       const params = {
@@ -68,7 +75,15 @@ export class ProductsService {
 
       console.log('Saved Product:', savedProduct);
 
-      return savedProduct;
+      let image_url = null;
+
+      if(file) {
+        image_url = await this.uploadService.uploadFile(file, `product/${product}`)
+      }
+
+      savedProduct.image_url = image_url;
+
+      return {savedProduct, image_url};
     } catch (error) {
       console.error('Error creating the product:', error.message);
       throw new ForbiddenException('Only superAdmin can create the product for user');
@@ -91,7 +106,10 @@ export class ProductsService {
 
 
   // function for creating a new Product
-  async createProduct(_createProductDto: CreateProductDto): Promise<Product> {
+  async createProduct(
+    _createProductDto: CreateProductDto,
+    file: Express.Multer.File
+  ): Promise<Product> {
 
     try {
       console.log('_createProductDto', CreateProductDto);
@@ -100,11 +118,19 @@ export class ProductsService {
 
       console.log('product ', product);
 
+      let image_url = null;
+
+      if(file) {
+        image_url = await this.uploadService.uploadFile(file, `product/${product}`);
+      }
+
+      product.image_url = image_url;
+
       return await this.productsRepository.save(product);
 
     } catch (error) {
       console.error('Error creating product:', error);
-      throw new Error('Failed to create product');
+      throw new BadRequestException('Failed to create product');
     }
 
   }
@@ -145,7 +171,7 @@ export class ProductsService {
 
     } catch (error) {
       console.error('Error retrieving products: ', error);
-      throw new Error('Failed to retrieve products');
+      throw new NotFoundException('No Products record found!');
     }
 
   }
@@ -209,7 +235,7 @@ export class ProductsService {
 
     } catch (error) {
       console.error('Error finding product and user:', error);
-      throw error;
+      throw new NotFoundException('No Product record with given id found!');
     }
   }
 
@@ -225,7 +251,9 @@ export class ProductsService {
   // function for Updating a Product by id
   async update(productId: string, _updateProductDto: UpdateProductDto): Promise<any> {
 
-    const product = await this.productsRepository.findOne({ where: { id: productId } });
+    try {
+
+      const product = await this.productsRepository.findOne({ where: { id: productId } });
   
     if (!product) {
       throw new NotFoundException(`Product with id ${productId} not found`);
@@ -244,7 +272,16 @@ export class ProductsService {
       message: `Product with given id ${productId} updated successfully!`,
       product: updatedProduct
     };
+  
+      
+    } catch (error) {
+      console.error('Error updating the product record', error.message);
+      throw new InternalServerErrorException('Failed to update product attributes!');
+    }
+
   }
+
+    
   
 
 
@@ -268,7 +305,7 @@ export class ProductsService {
 
     } catch (error) {
       console.error('Error Deleting product:', error);
-      throw error;
+      throw new NotFoundException('No product record with given id found!');
     }
 
   }

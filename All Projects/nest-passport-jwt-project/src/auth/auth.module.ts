@@ -16,6 +16,7 @@ import { Product } from 'src/products/entities/product.entity';
 import { AdminService } from 'src/admin/admin.service';
 import { AdminModule } from 'src/admin/admin.module';
 import { Admin } from 'typeorm';
+import { UploadService } from 'services/upload.service';
 
 
 @Module({
@@ -33,7 +34,7 @@ import { Admin } from 'typeorm';
     TypeOrmModule.forFeature([User, Product, AuthService]),
   ],
   controllers: [UsersController],
-  providers: [AuthService, UsersService, ProductsService, AdminService],
+  providers: [AuthService, UsersService, ProductsService, AdminService,UploadService],
   exports: [UsersService, AuthService],
 })
 

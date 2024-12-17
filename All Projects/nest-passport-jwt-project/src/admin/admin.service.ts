@@ -17,6 +17,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException
 } from '@nestjs/common';
 
@@ -24,7 +25,7 @@ import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
 import { Admin } from './entities/admin.entity';
 import { Role } from 'src/auth/roles.enum';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import { cognito } from 'config/aws.config';
@@ -128,7 +129,7 @@ export class AdminService {
       console.log('Checking if a user with the role exists:', role);
 
       if (!Object.values(Role).includes(role)) {
-        throw new Error(`Invalid role: ${role}`);
+        throw new BadRequestException(`Invalid role: ${role}`);
       }
 
       const params = {
@@ -145,7 +146,7 @@ export class AdminService {
       return usersWithRole.length > 0 ? usersWithRole : null;
     } catch (error) {
       console.error('Error fetching users by role:', error.message);
-      throw new Error('Error fetching users by role: ' + error.message);
+      throw new NotFoundException(`Users with role ${Role.User} not found` + error.message);
     }
   }
 
@@ -187,12 +188,12 @@ export class AdminService {
       console.error('Detailed error:', JSON.stringify(error, null, 2));
 
       if (error.name === 'ExpiredCodeException') {
-        throw new error('The confirmation code has expired. Please request a new code!');
+        throw new BadRequestException('The confirmation code has expired. Please request a new code!');
       } else if (error.name === 'CodeMismatchException') {
-        throw new Error('The confirmation code is incorrect. Please check the code and try again.');
+        throw new BadRequestException('The confirmation code is incorrect. Please check the code and try again.');
       }
 
-      throw new Error('Email confirmation failed due to an unexpected error.');
+      throw new InternalServerErrorException('Email confirmation failed due to an unexpected error.');
     }
 
   }
@@ -233,7 +234,7 @@ export class AdminService {
       return admins;
     } catch (error) {
       console.error('Error retrieving admins from Cognito:', error);
-      throw new Error('Failed to retrieve admins from Cognito');
+      throw new NotFoundException('No admins record found!');
     }
   }
 
@@ -265,9 +266,9 @@ export class AdminService {
       const role = response.UserAttributes?.find(attr => attr.Name === 'custom:role')?.Value as Role;
 
 
-      if (role === Role.SuperAdmin) {
-        throw new ForbiddenException('Access to super admin is not allowed!');
-      }
+      // if (role === Role.SuperAdmin) {
+      //   throw new ForbiddenException('Access to super admin is not allowed!');
+      // }
 
       return {
         id: response.Username || '',
@@ -280,7 +281,7 @@ export class AdminService {
 
     } catch (error) {
       console.error('Error retrieving admin from Cognito', error);
-      throw new Error('Failed to retrieve admin from Cognito');
+      throw new NotFoundException('No admin record found!');
     }
 
   }
@@ -361,7 +362,7 @@ export class AdminService {
       }
     } catch (error) {
       console.error('Error updating user', error);
-      throw error;
+      throw new InternalServerErrorException('Failed to update admin attributes!');
     }
   }
 
@@ -386,7 +387,7 @@ export class AdminService {
 
     } catch (error) {
       console.error('Error deleting admin', error);
-      throw error;
+      throw new NotFoundException('No admin record found for deletion');
     }
 
   }

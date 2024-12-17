@@ -22,34 +22,38 @@ export interface UserInterface {
 }
 
 export class CreateUserDto {
-  @ApiProperty()
+  @ApiProperty({description: 'Name', required: true})
   @IsNotEmpty()
   @IsString()
   name: string;
 
+
+  @ApiProperty({description: 'Email', required: true})
   @IsNotEmpty()
   @IsString()
   @IsEmail()
-  @ApiProperty()
   email: string;
 
+
+  @ApiProperty({description: 'Password', required: true})
   @IsNotEmpty()
   @IsString()
   @MinLength(8)
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/, {
     message: 'Password must include at least 1 uppercase, 1 lowercase, 1 number, and 1 special character',
   })
-  @ApiProperty()
   password: string;
 
+
+  @ApiProperty({description: 'Address', required: true})
   @IsNotEmpty()
   @IsString()
-  @ApiProperty()
   address: string;
+
 
   @IsOptional()
   // @IsBoolean()
-  @ApiProperty({default:true})
+  @ApiProperty({ default: true})
   isActive: boolean;
 
   @IsOptional()

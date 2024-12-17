@@ -3,6 +3,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import {
   CognitoIdentityProviderClient,
   SignUpCommand,
   ConfirmSignUpCommand,
+  InternalErrorException,
 } from '@aws-sdk/client-cognito-identity-provider';
 
 import { CreateUserDto, UserInterface } from './dto/create-user.dto';
@@ -34,8 +36,9 @@ import { cognito } from 'config/aws.config';
 import { cognito_user_pool_id } from 'config/aws.config';
 import { CognitoUserPool } from 'amazon-cognito-identity-js';
 import { Role } from 'src/auth/roles.enum';
-import { GetObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, ListObjectsV2Command, S3Client, UploadPartCommand } from '@aws-sdk/client-s3';
 import { config } from 'process';
+import { UploadService } from 'services/upload.service';
 
 
 @Injectable()
@@ -43,11 +46,13 @@ export class UsersService {
   private cognito: CognitoIdentityProviderClient;
 
   constructor(
+    private readonly uploadService: UploadService,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
 
     @InjectRepository(Product)
-    private readonly productsRepository: Repository<Product>
+    private readonly productsRepository: Repository<Product>,
+
   ) {
 
     this.cognito = new CognitoIdentityProviderClient({
@@ -67,54 +72,74 @@ export class UsersService {
 
 
 
-  
+
 
 
 
   // Function for registering the user in cognito
-  async registerUser(createUserDto: CreateUserDto): Promise<any> {
-
-    const { email, password, name, address, isActive, role } = createUserDto;
-
-    if (createUserDto.role !== 'user') {
-      throw new BadRequestException(
-        `Invalid role: ${createUserDto.role}. Only users with the role "user" can be registered.`
-      );
-    }
-
-
-    const params = {
-      UserPoolId: process.env.COGNITO_USER_POOL_ID,
-      ClientId: process.env.COGNITO_CLIENT_ID,
-
-      Username: email,
-      Password: password,
-      UserAttributes: [
-        { Name: 'name', Value: createUserDto.name },
-        { Name: 'email', Value: createUserDto.email },
-        { Name: 'address', Value: createUserDto.address },
-        { Name: 'custom:address', Value: String(createUserDto.address) },
-        { Name: 'custom:isActive', Value: createUserDto.isActive ? '1' : '0' },
-        { Name: 'custom:role', Value: createUserDto.role },
-      ],
-      
-    };
+  async registerUser(
+    createUserDto: CreateUserDto,
+    file: Express.Multer.File
+  ): Promise<any> {
+    const { name, email, password, address } = createUserDto;
 
     try {
 
-      const signUpCommand = new SignUpCommand(params);
+      const signUpCommand = new SignUpCommand({
+        ClientId: process.env.COGNITO_CLIENT_ID,
+        Username: email,
+        Password: password,
+        UserAttributes: [
+          { Name: 'name', Value: createUserDto.name },
+          { Name: 'email', Value: createUserDto.email },
+          { Name: 'address', Value: createUserDto.address },
+          { Name: 'custom:address', Value: String(createUserDto.address) },
+          { Name: 'custom:isActive', Value: createUserDto.isActive ? '1' : '0' },
+          { Name: 'custom:role', Value: createUserDto.role },
+        ],
+
+      });
+
       const signUpResponse = await this.cognito.send(signUpCommand);
 
-      return { message: 'Registration successful. Please check your email to verify your account!' };
+
+      const getUserCommand = new AdminGetUserCommand({
+        UserPoolId: process.env.COGNITO_USER_POOL_ID,
+        Username: email,
+      });
+
+      const userResponse = await this.cognito.send(getUserCommand);
+
+      const userAttributes = userResponse.UserAttributes.reduce((acc, attr) => {
+        const key = attr.Name.startsWith('custom:')
+          ? attr.Name.replace('custom:', '')
+          : attr.Name;
+        acc[key] = attr.Value;
+        return acc;
+      }, {});
+
+      const userId = userResponse.Username;
+
+      let image_url = null;
+
+      if (file) {
+        image_url = await this.uploadService.uploadFile(file, `user/${userId}`);
+      }
+
+      return {
+        message: 'User registered successfully. Please check your email and verify your account!. The user details are:',
+        id: userId,
+        name: userAttributes['name'],
+        email: userAttributes['email'],
+        isActive: userAttributes['isActive'] || 'true',
+        address: userAttributes['address'],
+        image_url: image_url || null,
+      };
     } catch (error) {
       console.error('Error registering user:', error);
-      console.error('Detailed error:', JSON.stringify(error, null, 2));
-
-      throw new Error('Registration failed');
+      throw new InternalServerErrorException('Failed to register user in Cognito');
     }
-
   }
-
 
 
 
@@ -128,7 +153,7 @@ export class UsersService {
       ClientId: process.env.COGNITO_CLIENT_ID,
       Username: email,
       ConfirmationCode: confirmationCode,
-     
+
     };
 
     try {
@@ -151,10 +176,10 @@ export class UsersService {
       if (error.name === 'ExpiredCodeException') {
         throw new error('The confirmation code has expired. Please request a new code!');
       } else if (error.name === 'CodeMismatchException') {
-        throw new Error('The confirmation code is incorrect. Please check the code and try again.');
+        throw new BadRequestException('The confirmation code is incorrect. Please check the code and try again.');
       }
 
-      throw new Error('Email confirmation failed due to an unexpected error.');
+      throw new BadRequestException('Email confirmation failed due to an unexpected error.');
     }
 
   }
@@ -173,12 +198,12 @@ export class UsersService {
     const clientId = process.env.COGNITO_CLIENT_ID;
 
     if (!email || !password) {
-      throw new UnauthorizedException('Email and password are required');
+      throw new BadRequestException('Email and password are required');
     }
 
     if (!clientSecret || !clientId) {
-      throw new Error(
-        'Cognito client configuration is missing. Ensure CLIENT_ID and CLIENT_SECRET are set in the environment.',
+      throw new BadRequestException(
+        'Cognito clientId and clientSecret is missing.',
       );
     }
 
@@ -221,18 +246,25 @@ export class UsersService {
           message: 'Please provide a new password to continue.',
         };
 
-      } else {
-        return authResult.AuthenticationResult;
       }
+
+      const accessToken = authResult.AuthenticationResult.AccessToken;
+
+      if (!accessToken) {
+        throw new UnauthorizedException('Access token not found in response');
+      }
+
+      return { accessToken };
+
     } catch (error) {
       console.error('Login failed:', error.message, error);
 
       if (error.code === 'NotAuthorizedException') {
         throw new UnauthorizedException('Invalid email or password');
       } else if (error.code === 'UserNotFoundException') {
-        throw new UnauthorizedException('User does not exist');
+        throw new NotFoundException('User does not exist');
       } else {
-        throw new Error('An unexpected error occurred:' + error.message);
+        throw new BadRequestException('Incorrect email or password:' + error.message);
       }
 
     }
@@ -344,7 +376,7 @@ export class UsersService {
         email: user.Attributes?.find(attr => attr.Name === 'email')?.Value || '',
         address: user.Attributes?.find(attr => attr.Name === 'address')?.Value || '',
         isActive: user.Attributes?.find(attr => attr.Name === 'custom:isActive')?.Value === '1',
-        role: user.Attributes?.find(attr => attr.Name === 'custom:role')?.Value || '',
+        role: user.Attributes?.find(attr => attr.Name === 'custom:role')?.Value || ''
       }));
 
       console.log(userList);
@@ -352,7 +384,7 @@ export class UsersService {
 
     } catch (error) {
       console.error('Error retrieving users from Cognito:', error);
-      throw new Error('Failed to retrieve users from Cognito');
+      throw new NotFoundException('Failed to retrieve users from Cognito');
     }
   }
 
@@ -377,7 +409,7 @@ export class UsersService {
       return filteredUsers || [];
     } catch (error) {
       console.error(`Error fetching users by role (${role}) from Cognito:`, error);
-      throw new Error('Failed to fetch users by role from Cognito');
+      throw new NotFoundException('Failed to fetch users by role from Cognito');
     }
   }
 
@@ -445,7 +477,7 @@ export class UsersService {
       };
     } catch (error) {
       console.error('Error retrieving user from Cognito:', error);
-      throw new Error('Failed to retrieve user from Cognito');
+      throw new BadRequestException('Failed to retrieve user from Cognito');
     }
   }
 
@@ -518,7 +550,8 @@ export class UsersService {
 
     } catch (error) {
       console.error('Error updating user', error);
-      throw error;
+      throw new InternalServerErrorException('Failed to update user attributes.');
+
     }
   }
 
@@ -542,7 +575,7 @@ export class UsersService {
       console.log(`User with ID ${id} deleted from Cognito`, response);
     } catch (error) {
       console.error('Error deleting user', error);
-      throw error;
+      throw new NotFoundException(`User with given id ${id} not found!`);
     }
 
   }

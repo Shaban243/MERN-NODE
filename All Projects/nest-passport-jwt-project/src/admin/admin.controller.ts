@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Put, Req, InternalServerErrorException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Put, Req, InternalServerErrorException, NotFoundException, HttpException } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
@@ -12,7 +12,7 @@ import { ConfirmEmailDto } from './dto/confirm-email.dto';
 
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(private readonly adminService: AdminService) { }
 
 
 
@@ -26,14 +26,25 @@ export class AdminController {
   @ApiOperation({ summary: 'Create a new admin (Super-Admin access only)' })
   @ApiBody({ type: CreateAdminDto })
   @ApiResponse({ status: 201, description: 'Admin created successfully' })
-  async createAdmin(@Body() createAdminDto: CreateAdminDto)    {
+  @ApiResponse({ status: 400, description: 'Bad Request' })
+  @ApiResponse({ status: 409, description: 'Conflict - Admin already exists' })
+  @ApiResponse({ status: 500, description: 'Internal Server Error' })
+  async createAdmin(@Body() createAdminDto: CreateAdminDto) {
 
     try {
       const createdAdmin = await this.adminService.registerAdmin(createAdminDto);
       return createdAdmin;
     } catch (error) {
       console.error('Error creating admin:', error.message);
-      throw new InternalServerErrorException('Failed to create admin');
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException({
+        message: error.message || 'An unexpected error occurred',
+        statusCode: 500,
+        error: 'Internal Server Error',
+      });
     }
 
   }
@@ -43,32 +54,27 @@ export class AdminController {
 
 
 
-   // Route for confirming the admin email
-    @Post('confirm-email/:email')
-    @ApiOperation({ summary: 'Cofirming the admin email through email verification code' })
-    @ApiParam({
-      name: 'email',
-      description: 'Confirm Admin email',
-      type: String,
-    })
-  
-    @ApiResponse({ status: 200, description: 'Admin email verified successfully' })
-    @ApiResponse({ status: 500, description: 'Internal server error' })
-  
-    async confirmEmail(
-      @Param('email') email: string, 
-      @Body() confirmEmailDto: ConfirmEmailDto) {
-  
-      try {
-        const emailStatus = this.adminService.confirmEmail(email, confirmEmailDto.confirmationCode);
-        return emailStatus;
-        
-      } catch (error) {
-        console.error('Error confirming the admin email', error.message);
-        throw new InternalServerErrorException('Error confirming the admin email');
-      }
-  
+  // Route for confirming the admin email
+  @Post('confirm-email/:email')
+  @ApiOperation({ summary: 'Cofirming the admin email through email verification code' })
+  @ApiResponse({ status: 200, description: 'Admin email verified successfully' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+
+  async confirmEmail(@Body() confirmEmailDto: ConfirmEmailDto) {
+
+    try {
+      const emailStatus = this.adminService.confirmEmail(
+        confirmEmailDto.email,
+        confirmEmailDto.confirmationCode
+      );
+      return emailStatus;
+
+    } catch (error) {
+      console.error('Error confirming the admin email', error.message);
+      throw new InternalServerErrorException('Error confirming the admin email');
     }
+
+  }
 
 
 
@@ -87,7 +93,7 @@ export class AdminController {
       return this.adminService.getAllAdmins();
     } catch (error) {
       console.error('Error retrieving admins:', error.message);
-      throw error;
+      throw new NotFoundException('No admin record found!');
     }
 
   }
@@ -107,14 +113,14 @@ export class AdminController {
   @ApiOperation({ summary: 'Get admin by username (Super-Admin access only)' })
   @ApiResponse({ status: 200, description: 'Admin fetched successfully' })
 
-  async getAdminById(@Param('username') username: string) : Promise<Partial<Admin>>    {
+  async getAdminById(@Param('username') username: string): Promise<Partial<Admin>> {
 
     try {
-      const admin : Partial<Admin> = await this.adminService.getAdminById(username);
+      const admin: Partial<Admin> = await this.adminService.getAdminById(username);
       return admin;
     } catch (error) {
       console.error(`Error finding the user with id ${username}`, error.message);
-      throw error;
+      throw new NotFoundException('No admin record found!');
     }
 
   }
@@ -135,14 +141,14 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Admin updated successfully' })
   @ApiBody({ type: UpdateAdminDto })
 
-  async updateAdmin(@Param('username') username: string, @Body() updateAdminDto: UpdateAdminDto)   {
+  async updateAdmin(@Param('username') username: string, @Body() updateAdminDto: UpdateAdminDto) {
 
     try {
       const updatedAdmin = await this.adminService.updateAdmin(username, updateAdminDto);
       return updatedAdmin;
     } catch (error) {
       console.error(`Error updating admin with id ${username}`, error.message);
-      throw error;
+      throw new InternalServerErrorException('Failed to update admin attributes.');
     }
 
   }
@@ -169,9 +175,9 @@ export class AdminController {
       return deletedAdmin;
     } catch (error) {
       console.error(`Error deleting the admin with id ${username}`, error.message);
-      throw error;
+      throw new NotFoundException('No admin record found for deletion!');
     }
-    
+
   }
 
 

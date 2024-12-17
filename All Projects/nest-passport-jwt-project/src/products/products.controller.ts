@@ -13,6 +13,8 @@ import {
   UseGuards,
   Req,
   ForbiddenException,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 
 import {
@@ -40,7 +42,7 @@ export class ProductsController {
   constructor(
     private readonly productsService: ProductsService,
     private readonly uploadService: UploadService,
-  ) {}
+  ) { }
 
 
 
@@ -50,20 +52,42 @@ export class ProductsController {
   @Post('createproduct')
   @UseGuards(CognitoAuthGuard, RolesGuard)
   @Roles([Role.SuperAdmin, Role.ProductAssistantAdmin])
+  @UseInterceptors(FileInterceptor('file'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new product (Super-Admin && Product-Assistant Admin)' })
-  @ApiBody({ type: CreateProductDto })
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        description: { type: "string" },
+        file: {
+          type: "string",
+          format: "binary"
+        },
+      },
+    },
+  })
   @ApiResponse({ status: 201, description: 'Product created successfully' })
   @ApiResponse({ status: 500, description: 'Failed to create Product' })
 
-  async createProduct(@Req() req, @Body() createProductDto: CreateProductDto)  {
+  async createProduct(
+    @Req() req,
+    @Body() createProductDto: CreateProductDto,
+    @UploadedFile() file: Express.Multer.File
+  ) {
+
     const user = req.user;
 
     try {
-      return await this.productsService.createProduct(createProductDto);
+      const result = await this.productsService.createProduct(createProductDto, file);
+      console.log('Product created data is: ', result);
+
+      return result;
     } catch (error) {
       console.error('Error creating product', error.message);
-      throw error;
+      throw new BadRequestException('Failed to create product');
     }
 
   }
@@ -74,37 +98,51 @@ export class ProductsController {
 
   // Route for create product for specific user
   @Post('createProduct/:username')
-  @ApiBearerAuth()
   @UseGuards(CognitoAuthGuard, RolesGuard)
+  @UseInterceptors(FileInterceptor('file'))
   @Roles([Role.SuperAdmin])
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new product for a specific user (Super-Admin)' })
-  @ApiParam({
-    name: 'username',
-    description: 'Product ID for whom the product is being created',
-    type: String,
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        username: { type: "string" },
+        name: { type: "string" },
+        description: { type: "string" },
+        file: {
+          type: "string",
+          format: "binary"
+        },
+      },
+      required: ["username"]
+    },  
   })
-  @ApiBody({ type: CreateProductDto })
 
   @ApiResponse({ status: 201, description: 'Product created successfully for the user' })
   @ApiResponse({ status: 500, description: 'Failed to create product for the user' })
 
   async createProductForUser(
-    @Param('username') username: string,
-    @Body() createProductDto: CreateProductDto,
-  )   {
+    @Body() createProductDto: { name: string; description: string; username: string },
+    @UploadedFile() file: Express.Multer.File
+  ) {
 
     try {
+      const { username, ...productData } = createProductDto;
+
       const product = this.productsService.createProductForUser(
         createProductDto,
         username,
+        file
       );
 
       return product;
     } catch (error) {
       console.error('Error creating the product', error.message);
-      throw new ForbiddenException('Only superAdmin can create the product for user'); 
+      throw new ForbiddenException('Only superAdmin can create the product for user');
     }
-    
+
   }
 
 
@@ -169,7 +207,7 @@ export class ProductsController {
     // Function for uploading a new productImage
     @Param('id') ProductId: string,
     @UploadedFile() file: Express.Multer.File,
-  )    {
+  ) {
 
     try {
       const image_url = await this.uploadService.uploadFile(
@@ -203,14 +241,14 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: 'Products retrieved successfully' })
   @ApiResponse({ status: 500, description: 'Failed to retrieve products' })
 
-  async findAll()   {
+  async findAll() {
 
     try {
       const products = await this.productsService.findAll();
       return products;
     } catch (error) {
       console.error('Error retrieving the products!', error.message);
-      throw error;
+      throw new NotFoundException('No Products record found!');
     }
 
   }
@@ -230,14 +268,14 @@ export class ProductsController {
   @ApiResponse({ status: 200, description: 'Product retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Product not found' })
 
-  async findOne(@Param('id') id: string)   {
+  async findOne(@Param('id') id: string) {
 
     try {
       const product = await this.productsService.findOne(id);
       return product;
     } catch (error) {
       console.error(`Product with ID ${id} not found`, error.message);
-      throw error;
+      throw new NotFoundException(`No Product record with given id ${id} found!`);
     }
 
   }
@@ -261,7 +299,7 @@ export class ProductsController {
   async update(
     @Param('id') id: string,
     @Body() updateProductDto: UpdateProductDto,
-  )   {
+  ) {
 
     try {
       const updatedProduct = await this.productsService.update(
@@ -271,7 +309,7 @@ export class ProductsController {
       return updatedProduct;
     } catch (error) {
       console.error(`Product with ID ${id} not found`, error.message);
-      throw error;
+      throw new InternalServerErrorException('Failed to update product attributes!');
     }
 
   }
@@ -281,7 +319,7 @@ export class ProductsController {
 
 
 
-  
+
   // Route for deleting a product by id
   @Delete('deleteProduct/:id')
   @ApiBearerAuth()
@@ -293,13 +331,13 @@ export class ProductsController {
   @ApiResponse({ status: 404, description: 'Product not found' })
 
   async remove(@Param('id') id: string) {
-    
+
     try {
       const deletedProduct = await this.productsService.remove(id);
       return deletedProduct;
     } catch (error) {
       console.error(`Product with ID ${id} not found`, error.message);
-      throw error;
+      throw new NotFoundException('No product record with given id found!');
     }
   }
 

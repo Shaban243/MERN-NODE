@@ -15,7 +15,7 @@ import { User } from 'src/users/entities/user.entity';
   imports: [TypeOrmModule.forFeature([Product, User])],
   controllers: [ProductsController],
   providers: [ProductsService, UploadService],
-  exports: [ProductsService, UploadService],
+  exports: [ProductsService],
 
 })
 

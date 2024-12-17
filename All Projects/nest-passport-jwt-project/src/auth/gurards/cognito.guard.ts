@@ -27,13 +27,14 @@ export class CognitoAuthGuard implements CanActivate {
     const token = request.headers['authorization']?.replace('Bearer ', '');
 
     if (!token) {
-      throw new ForbiddenException('Token is missing');
+      throw new ForbiddenException('Access token is missing');
     }
 
     try {
       const command = new GetUserCommand({
         AccessToken: token,
       });
+
 
       const response = await this.cognitoClient.send(command);
       const userAttributes = response.UserAttributes;
