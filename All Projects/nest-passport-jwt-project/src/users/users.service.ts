@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -369,6 +370,7 @@ export class UsersService {
       if (!users || users.length === 0) {
         return null;
       }
+
 
       const userList = users.map(user => ({
         id: user.Username || '',

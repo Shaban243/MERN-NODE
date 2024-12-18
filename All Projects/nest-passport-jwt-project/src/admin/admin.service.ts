@@ -53,69 +53,80 @@ export class AdminService {
 
   // Create admin
   async registerAdmin(createAdminDto: CreateAdminDto): Promise<any> {
-
-    const { email, password, name, address, isActive, role } = createAdminDto;
+    const { name, email, password, address, isActive, role } = createAdminDto;
 
     try {
 
-      const existingAdmin = await this.getCognitoUserByRole(createAdminDto.role);
-
-
+      const existingAdmin = await this.getCognitoUserByRole(role);
       if (
-        (createAdminDto.role === Role.SuperAdmin || createAdminDto.role === Role.UserAssistantAdmin || createAdminDto.role === Role.ProductAssistantAdmin) &&
+        [Role.SuperAdmin, Role.UserAssistantAdmin, Role.ProductAssistantAdmin].includes(role) &&
         existingAdmin
       ) {
-        throw new ConflictException(`A ${createAdminDto.role} already exists and cannot be created again.`);
+        throw new ConflictException(`A ${role} already exists and cannot be created again.`);
       }
 
 
-      if (
-        !createAdminDto.email ||
-        !createAdminDto.password ||
-        !createAdminDto.role
-      ) {
+      if (!email || !password || !role) {
+        throw new BadRequestException('Missing required fields: email, password, or role.');
+      }
+
+
+      if (![Role.SuperAdmin, Role.UserAssistantAdmin, Role.ProductAssistantAdmin].includes(role)) {
         throw new BadRequestException(
-          'Missing required fields: email, password, or role.',
+          'Role must be one of the following: Super-Admin, User-Assistant-Admin, Product-Assistant-Admin.'
         );
-
-      }
-
-      if (![Role.SuperAdmin, Role.UserAssistantAdmin, Role.ProductAssistantAdmin].includes(createAdminDto.role)) {
-        throw new BadRequestException('Role must be one of the following: Super-Admin, User-Assistant-Admin, Product-Assistant-Admin.');
       }
 
 
-      const params = {
-        UserPoolId: process.env.COGNITO_USER_POOL_ID,
+      const signUpCommand = new SignUpCommand({
         ClientId: process.env.COGNITO_CLIENT_ID,
         Username: email,
         Password: password,
         UserAttributes: [
-          { Name: 'name', Value: createAdminDto.name },
-          { Name: 'email', Value: createAdminDto.email },
-          { Name: 'address', Value: createAdminDto.address },
-          { Name: 'custom:address', Value: String(createAdminDto.address) },
-          { Name: 'custom:isActive', Value: createAdminDto.isActive ? '1' : '0' },
-          { Name: 'custom:role', Value: createAdminDto.role },
+          { Name: 'name', Value: name },
+          { Name: 'email', Value: email },
+          { Name: 'address', Value: address },
+          { Name: 'custom:address', Value: address },
+          { Name: 'custom:isActive', Value: isActive ? '1' : '0' },
+          { Name: 'custom:role', Value: role },
         ],
+      });
+
+      await this.cognito.send(signUpCommand);
+
+
+      const getUserCommand = new AdminGetUserCommand({
+        UserPoolId: process.env.COGNITO_USER_POOL_ID,
+        Username: email,
+      });
+
+      const userResponse = await this.cognito.send(getUserCommand);
+
+
+      const userAttributes = userResponse.UserAttributes.reduce((acc, attr) => {
+        const key = attr.Name.startsWith('custom:')
+          ? attr.Name.replace('custom:', '')
+          : attr.Name;
+        acc[key] = attr.Value;
+        return acc;
+      }, {});
+
+      const userId = userResponse.Username;
+
+      return {
+        message: 'Admin registered successfully. Please check your email and verify your account!. The admins details are: ',
+        id: userId,
+        name: userAttributes['name'],
+        email: userAttributes['email'],
+        address: userAttributes['address'],
+        isActive: userAttributes['isActive'] === '1' ? true : false,
+        role: userAttributes['role'],
       };
-
-      // const createdAdmin = await this.cognito.send(
-      //   new AdminCreateUserCommand(params));
-      // console.log('Admin successfully created:', createdAdmin);
-
-      const signUpCommand = new SignUpCommand(params);
-      const signUpResponse = await this.cognito.send(signUpCommand);
-
-      return { message: 'Registration successful. Please check your email to verify your account!' };
-
     } catch (error) {
-      console.error('Error creating admin:', error.message || error);
-      throw new Error('Error creating admin: ' + error.message || error);
+      console.error('Error registering admin:', error.message || error);
+      throw new Error('Error registering admin: ' + error.message || error);
     }
-
   }
-
 
 
 

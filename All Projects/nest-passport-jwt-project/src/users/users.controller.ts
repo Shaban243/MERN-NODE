@@ -15,6 +15,8 @@ import {
   InternalServerErrorException,
   Query,
   NotFoundException,
+  ForbiddenException,
+  HttpException,
 } from '@nestjs/common';
 
 import {
@@ -60,7 +62,7 @@ export class UsersController {
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Register a new user' })
   @ApiConsumes("multipart/form-data")
-  @ApiBody({ 
+  @ApiBody({
     schema: {
       type: "object",
       properties: {
@@ -111,7 +113,7 @@ export class UsersController {
 
     try {
       const emailStatus = this.usersService.confirmEmail(
-        confirmEmailDto.email, 
+        confirmEmailDto.email,
         confirmEmailDto.confirmationCode
       );
       return emailStatus;
@@ -162,27 +164,29 @@ export class UsersController {
   @ApiBearerAuth()
   @UseGuards(CognitoAuthGuard, RolesGuard)
   @Roles([Role.SuperAdmin, Role.UserAssistantAdmin])
-  // @UsePipes(new ValidationPipe())
-  @ApiOperation({ summary: 'Retrieve all users (Super-Admin access && Users-Assistant Admin access)' })
-  @ApiResponse({ status: 201, description: 'User list retrieved successfully' })
+  @ApiOperation({ summary: 'Retrieve all users (Super-Admin && User-Assistant Admin access)' })
+  @ApiResponse({ status: 200, description: 'User list retrieved successfully' })
   @ApiResponse({
     status: 403,
-    description: 'Forbidden: Only admin can retrieve users',
+    description: 'Forbidden: Only SuperAdmin or UserAssistantAdmin can retrieve users',
   })
-  @ApiResponse({ status: 500, description: 'Failed to create user' })
-
+  @ApiResponse({ status: 404, description: 'No users record found!' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async findAll(@Req() req) {
-
+    
     try {
-      console.log({ user: req.user });
+
       return this.usersService.findAll();
     } catch (error) {
       console.error('Error retrieving users:', error.message);
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
       throw new NotFoundException('No users record found!');
     }
-
   }
-
 
 
 

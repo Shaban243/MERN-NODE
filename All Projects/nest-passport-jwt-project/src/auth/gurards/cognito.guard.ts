@@ -11,12 +11,14 @@ import {
   GetUserCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { cognito } from 'config/aws.config'; 
+import { Role } from '../roles.enum';
+import { Reflector } from '@nestjs/core';
 
 @Injectable()
 export class CognitoAuthGuard implements CanActivate {
   private cognitoClient: CognitoIdentityProviderClient;
 
-  constructor() {
+  constructor( private reflector: Reflector) {
     this.cognitoClient = new CognitoIdentityProviderClient({
       region: 'ap-south-1',
     });
@@ -46,7 +48,22 @@ export class CognitoAuthGuard implements CanActivate {
         return acc;
       }, {});
 
-      request.user = { id: response.Username, ...userInfo };
+      const userRole = userInfo['role'];
+      request.user = { id: response.Username, role: userRole, ...userInfo };  
+
+      const allowedRoles = this.reflector.get<string[]>(
+        'roles',
+        context.getHandler(),
+      )
+
+      if(allowedRoles && !allowedRoles.includes(userRole)) {
+        throw new ForbiddenException(
+          `You do not have permission to access this resource. Required roles: ${allowedRoles.join(
+            ', ',
+          )}`,
+        );
+      }
+
       return true;
       
     } catch (error) {

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Put, Req, InternalServerErrorException, NotFoundException, HttpException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Put, Req, InternalServerErrorException, NotFoundException, HttpException, ConflictException } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
@@ -36,6 +36,7 @@ export class AdminController {
       return createdAdmin;
     } catch (error) {
       console.error('Error creating admin:', error.message);
+
       if (error instanceof HttpException) {
         throw error;
       }
@@ -46,6 +47,7 @@ export class AdminController {
         error: 'Internal Server Error',
       });
     }
+    
 
   }
 
