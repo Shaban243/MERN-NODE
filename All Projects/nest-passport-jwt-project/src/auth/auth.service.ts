@@ -37,7 +37,7 @@ export class AuthService {
 
    // Function for registering the user in cognito
    async registerUser(createUserDto: CreateUserDto): Promise<any> {
-    const { email, password, name, address, isActive } = createUserDto;
+    const { email, password, name, address } = createUserDto;
 
 
     const params = {
@@ -49,7 +49,7 @@ export class AuthService {
         { Name: 'email', Value: createUserDto.email },
         { Name: 'address', Value: createUserDto.address },
         { Name: 'custom:address', Value: String(createUserDto.address) },
-        { Name: 'custom:isActive', Value: createUserDto.isActive ? '1' : '0' },
+        { Name: 'custom:isActive', Value: 'true' },
       ],
     };
 

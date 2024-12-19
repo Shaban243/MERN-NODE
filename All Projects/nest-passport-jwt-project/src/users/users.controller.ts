@@ -17,6 +17,9 @@ import {
   NotFoundException,
   ForbiddenException,
   HttpException,
+  ConflictException,
+  UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 
 import {
@@ -44,6 +47,7 @@ import { CognitoAuthGuard } from 'src/auth/gurards/cognito.guard';
 import { Roles } from 'src/auth/gurards/roles.decorator';
 import { ConfirmUserDto } from './dto/confirm-user.dto';
 import { ConfirmEmailDto } from './dto/confirm-email.dto';
+import { NotAuthorizedException } from '@aws-sdk/client-cognito-identity-provider';
 
 
 
@@ -80,6 +84,17 @@ export class UsersController {
     },
   })
   @ApiResponse({ status: 200, description: 'User registered successfully' })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict: User with this email already exists',
+    schema: {
+      example: {
+        statusCode: 409,
+        message: 'A user with this email already exists',
+        error: 'Conflict',
+      },
+    },
+  })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async register(
     @Body() createUserDto: CreateUserDto,
@@ -93,6 +108,10 @@ export class UsersController {
       return result;
     } catch (error) {
       console.error('Error during registration:', error.message);
+
+      if (error instanceof ConflictException) {
+        throw error;
+      }
       throw new InternalServerErrorException('User registration failed');
     }
 
@@ -137,6 +156,55 @@ export class UsersController {
   @ApiOperation({ summary: 'Authenticate a user and return a JWT token' })
   @ApiBody({ type: LoginDto })
   @ApiResponse({ status: 200, description: 'User authenticated successfully' })
+  @ApiResponse({
+    status: 403,
+    description: 'Email not verified',
+    schema: {
+      example: {
+        statusCode: 403,
+        message: 'Please verify your email before logging in.',
+        error: 'Forbidden',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid credentials',
+    schema: {
+      example: {
+        statusCode: 401,
+        message: 'Invalid email or password',
+        error: 'Unauthorized',
+      },
+    },
+  })
+
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid credentials',
+    schema: {
+      example: {
+        statusCode: 401,
+        message: 'Email and password are required',
+        error: 'BadRequest',
+      },
+    },
+  })
+
+
+  @ApiResponse({
+    status: 404,
+    description: 'Invalid credentials',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'Email and password are required',
+        error: 'NotFound',
+      },
+    },
+  })
+
+
   @ApiResponse({ status: 500, description: 'Internal server error' })
 
   async login(@Body() loginDto: LoginDto) {
@@ -146,7 +214,24 @@ export class UsersController {
       const token = await this.usersService.login(loginDto);
       return { token };
     } catch (error) {
-      console.error('Error during login:', error.message);
+      console.error('Error during login:', error, error instanceof NotAuthorizedException);
+
+      if (error instanceof ForbiddenException) {
+        throw error;
+      }
+  
+      if (error instanceof NotAuthorizedException) {
+        throw new UnauthorizedException(error.message);
+      }
+
+      if(error instanceof BadRequestException) {
+        throw error;
+      }
+
+      if(error instanceof NotFoundException) {
+        throw error;
+      }
+      
       throw new InternalServerErrorException('Login failed');
     }
 
@@ -168,23 +253,44 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'User list retrieved successfully' })
   @ApiResponse({
     status: 403,
-    description: 'Forbidden: Only SuperAdmin or UserAssistantAdmin can retrieve users',
+    description: 'Forbidden: Only SuperAdmin or UserAssistantAdmin can retrieve users record',
+    schema: {
+      example: {
+        statusCode: 403,
+        message: ' Only SuperAdmin or UserAssistantAdmin can retrieve users record',
+        error: 'Forbidden',
+      }
+    }
   })
-  @ApiResponse({ status: 404, description: 'No users record found!' })
+  @ApiResponse({
+    status: 404,
+    description: 'No users record found!',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'No users record found',
+        error: 'NotFound'
+      },
+    },
+  })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async findAll(@Req() req) {
-    
+
     try {
 
       return this.usersService.findAll();
     } catch (error) {
       console.error('Error retrieving users:', error.message);
 
-      if (error instanceof HttpException) {
+      if (error instanceof ForbiddenException) {
         throw error;
       }
 
-      throw new NotFoundException('No users record found!');
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to retrieve users record');
     }
   }
 
@@ -248,20 +354,20 @@ export class UsersController {
 
 
   // Route for getting user by id (admin-only access)
-  @Get('getUser/:username')
+  @Get('getUser/:userId')
   @ApiBearerAuth()
   @UseGuards(CognitoAuthGuard, RolesGuard)
   @Roles([Role.SuperAdmin, Role.UserAssistantAdmin])
-  @ApiOperation({ summary: 'Get details of a specific user by username (Super-Admin access && Users-Assistant Admin access)' })
+  @ApiOperation({ summary: 'Get details of a specific user by userId (Super-Admin access && Users-Assistant Admin access)' })
   @ApiResponse({ status: 200, description: 'User details retrieved successfully' })
   @ApiResponse({ status: 404, description: 'User not found' })
-  async findOne(@Param('username') username: string): Promise<User> {
+  async findOne(@Param('userId') userId: string): Promise<User> {
 
     try {
-      const user = await this.usersService.findUserById(username);
+      const user = await this.usersService.findUserById(userId);
       return user;
     } catch (error) {
-      console.error(`Error finding the user with id ${username}`, error.message);
+      console.error(`Error finding the user with id ${userId}`, error.message);
       throw new NotFoundException('No user record found!');
     }
 
@@ -275,23 +381,23 @@ export class UsersController {
 
 
   // Route for updating user by id
-  @Put('updateUser/:username')
+  @Put('updateUser/:userId')
   // @ApiBearerAuth()
   // @UseGuards(CognitoAuthGuard, RolesGuard)
   // @Roles([Role.SuperAdmin, Role.UserAssistantAdmin, Role.User])
-  @ApiOperation({ summary: 'Update a specific user by username (Super-Admin access && Users-Assistant Admin access && User-access)' })
-  @ApiParam({ name: 'username', description: 'User-Name to update', type: String })
+  @ApiOperation({ summary: 'Update a specific user by userId (Super-Admin access && Users-Assistant Admin access && User-access)' })
+  @ApiParam({ name: 'userId', description: 'userId to update', type: String })
   @ApiBody({ type: UpdateUserDto })
   @ApiResponse({ status: 200, description: 'User updated successfully' })
   @ApiResponse({ status: 404, description: 'User not found' })
 
-  async update(@Param('username') username: string, @Body() updateUserDto: UpdateUserDto) {
+  async update(@Param('userId') userId: string, @Body() updateUserDto: UpdateUserDto) {
 
     try {
-      const updatedUser = await this.usersService.update(username, updateUserDto);
+      const updatedUser = await this.usersService.update(userId, updateUserDto);
       return updatedUser;
     } catch (error) {
-      console.error(`Error updating user with id ${username}`, error.message);
+      console.error(`Error updating user with username ${userId}`, error.message);
       throw new InternalServerErrorException('Failed to update user attributes.');
     }
 
@@ -304,23 +410,23 @@ export class UsersController {
 
 
   // Route for deleting a user by id (admin-only access)
-  @Delete('deleteUser/:username')
+  @Delete('deleteUser/:userId')
   @ApiBearerAuth()
   @UseGuards(CognitoAuthGuard, RolesGuard)
   @Roles([Role.SuperAdmin, Role.UserAssistantAdmin])
-  @ApiOperation({ summary: 'Delete a specific user by username (Super-Admin access && Users-Assistant Admin access)' })
-  @ApiParam({ name: 'username', description: 'User username to delete', type: String })
+  @ApiOperation({ summary: 'Delete a specific user by userId (Super-Admin access && Users-Assistant Admin access)' })
+  @ApiParam({ name: 'userId', description: 'UserId to delete', type: String })
   @ApiResponse({ status: 200, description: 'User deleted successfully' })
   @ApiResponse({ status: 404, description: 'User not found' })
 
-  async remove(@Param('username') username: string) {
+  async remove(@Param('userId') userId: string) {
 
     try {
-      const deletedUser = await this.usersService.remove(username);
+      const deletedUser = await this.usersService.remove(userId);
       console.log('deletedUser is: ', deletedUser);
       return deletedUser;
     } catch (error) {
-      console.error(`Error deleting the user with id ${username}`, error.message);
+      console.error(`Error deleting the user with id ${userId}`, error.message);
       throw new NotFoundException(`User with given id not found!`);
     }
 

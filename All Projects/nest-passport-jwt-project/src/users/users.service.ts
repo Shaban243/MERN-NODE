@@ -21,6 +21,7 @@ import {
   SignUpCommand,
   ConfirmSignUpCommand,
   InternalErrorException,
+  NotAuthorizedException,
 } from '@aws-sdk/client-cognito-identity-provider';
 
 import { CreateUserDto, UserInterface } from './dto/create-user.dto';
@@ -28,7 +29,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import { User } from './entities/user.entity';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { LoginInterface } from 'src/auth/dto/login.dto';
 import { Product } from 'src/products/entities/product.entity';
 import { ProductsService } from 'src/products/products.service';
@@ -82,7 +83,7 @@ export class UsersService {
     createUserDto: CreateUserDto,
     file: Express.Multer.File
   ): Promise<any> {
-    const { name, email, password, address } = createUserDto;
+    const { name, email, password, address, } = createUserDto;
 
     try {
 
@@ -138,7 +139,12 @@ export class UsersService {
       };
     } catch (error) {
       console.error('Error registering user:', error);
-      throw new InternalServerErrorException('Failed to register user in Cognito');
+
+      if (error.name === 'UsernameExistsException') {
+        throw new ConflictException('A user with this email already exists');
+      }
+
+      throw new InternalServerErrorException('Failed to register user');
     }
   }
 
@@ -210,6 +216,22 @@ export class UsersService {
 
     // const secretHash = this.generateSecretHash(email, clientId, clientSecret);
 
+
+    const getUserCommand = new AdminGetUserCommand({
+      UserPoolId: process.env.COGNITO_USER_POOL_ID,
+      Username: email,
+    });
+
+    const userResponse = await cognito.send(getUserCommand);
+
+    const emailVerified = userResponse.UserAttributes.find(
+      (attr) => attr.Name === 'email_verified',
+    )?.Value;
+
+    if (emailVerified !== 'true') {
+      throw new ForbiddenException('Please verify your email before logging in.');
+    }
+
     const params = {
       AuthFlow: 'ADMIN_NO_SRP_AUTH',
       UserPoolId: cognito_user_pool_id,
@@ -236,10 +258,10 @@ export class UsersService {
 
       const authResult = await cognito.send(user);
 
-      if (!authResult.AuthenticationResult) {
-        console.error('AuthenticationResult is undefined');
-        throw new UnauthorizedException('Invalid login credentials');
-      }
+      // if (!authResult.AuthenticationResult) {
+      //   console.error('AuthenticationResult is undefined');
+      //   throw new UnauthorizedException('Invalid login credentials');
+      // }
 
       if (authResult.ChallengeName === 'NEW_PASSWORD_REQUIRED') {
         return {
@@ -258,16 +280,25 @@ export class UsersService {
       return { accessToken };
 
     } catch (error) {
-      console.error('Login failed:', error.message, error);
+      console.error('Login failed:', error);
 
-      if (error.code === 'NotAuthorizedException') {
-        throw new UnauthorizedException('Invalid email or password');
-      } else if (error.code === 'UserNotFoundException') {
-        throw new NotFoundException('User does not exist');
-      } else {
-        throw new BadRequestException('Incorrect email or password:' + error.message);
+      if (error instanceof ForbiddenException) {
+        throw error; 
+      }
+  
+      if (error instanceof NotAuthorizedException) {
+        throw error;
       }
 
+      if(error instanceof BadRequestException) {
+        throw error;
+      }
+      
+      if(error instanceof NotFoundException) {
+        throw error;
+      }
+  
+      throw new InternalServerErrorException('Login failed due to an unexpected error');
     }
 
   }
@@ -386,7 +417,12 @@ export class UsersService {
 
     } catch (error) {
       console.error('Error retrieving users from Cognito:', error);
-      throw new NotFoundException('Failed to retrieve users from Cognito');
+
+      if (error.name === 'NotFoundException') {
+        throw new NotFoundException('No users record found');
+      }
+
+      throw new InternalServerErrorException('Failed to retrieve users from Cognito');
     }
   }
 
@@ -490,9 +526,8 @@ export class UsersService {
 
 
   // Function for updating a user by id
-  async update(username: string, _updateUserDto: UpdateUserDto): Promise<User> {
+  async update(username: string, _updateUserDto: UpdateUserDto): Promise<any> {
     try {
-
       const userAttributes = [];
 
       if (_updateUserDto.name) {
@@ -504,10 +539,10 @@ export class UsersService {
 
 
       if (_updateUserDto.email) {
-        userAttributes.push({
-          Name: 'email',
-          Value: String(_updateUserDto.email),
-        });
+        userAttributes.push(
+          { Name: 'email', Value: String(_updateUserDto.email) },
+          // { Name: 'email_verified', Value: 'false' }
+        );
       }
 
 
@@ -533,7 +568,7 @@ export class UsersService {
 
 
       if (userAttributes.length === 0) {
-        throw new ConflictException('No attributes to update');
+        throw new NotFoundException('No attributes to update.');
       }
 
 
@@ -543,19 +578,25 @@ export class UsersService {
         UserAttributes: userAttributes,
       };
 
-
       const command = new AdminUpdateUserAttributesCommand(params);
-      const response = await cognito.send(command);
+      await cognito.send(command);
+      console.log(`User with username ${username} updated successfully.`);
 
-      console.log(`User with username ${username} updated successfully`, response);
-      return;
 
+      if (_updateUserDto.email) {
+        console.log(`A verification email has been sent to ${_updateUserDto.email}.`);
+      }
+
+      return {
+        message:
+          'User updated successfully. Please check your newly updated email and verify your account!',
+      };
     } catch (error) {
-      console.error('Error updating user', error);
+      console.error('Error updating user:', error.message || error);
       throw new InternalServerErrorException('Failed to update user attributes.');
-
     }
   }
+
 
 
 
@@ -686,23 +727,23 @@ export class UsersService {
 
 
   // Function for resetting the user's password
-  private async resetPassword(id: string, newPassword: string): Promise<void> {
+  private async resetPassword(username: string, newPassword: string): Promise<void> {
 
     try {
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
 
       const params = {
         UserPoolId: process.env.COGNITO_USER_POOL_ID,
-        Username: id,
-        Password: hashedPassword,
+        Username: username,
+        Password: newPassword,
         Permanent: true,
       };
 
       const command = new AdminSetUserPasswordCommand(params);
       await cognito.send(command);
-      console.log(`Password for user with id ${id} updated successfully`);
+
+      console.log(`Password for user with username ${username} updated successfully`);
     } catch (error) {
-      console.error('Error resetting password', error);
+      console.error('Error resetting password', error.message || error);
       throw new ConflictException('Failed to update password');
     }
 

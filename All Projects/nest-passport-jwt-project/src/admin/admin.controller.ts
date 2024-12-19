@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Put, Req, InternalServerErrorException, NotFoundException, HttpException, ConflictException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Put, Req, InternalServerErrorException, NotFoundException, HttpException, ConflictException, BadRequestException } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
@@ -26,8 +26,28 @@ export class AdminController {
   @ApiOperation({ summary: 'Create a new admin (Super-Admin access only)' })
   @ApiBody({ type: CreateAdminDto })
   @ApiResponse({ status: 201, description: 'Admin created successfully' })
-  @ApiResponse({ status: 400, description: 'Bad Request' })
-  @ApiResponse({ status: 409, description: 'Conflict - Admin already exists' })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Bad Request',
+    schema: {
+      example: {
+        statusCode: 400,
+        message:  'Role must be one of the following: Super-Admin, User-Assistant-Admin, Product-Assistant-Admin.',
+        error: 'BadRequest'
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 409, 
+    description: 'Conflict - Admin already exists',
+    schema: {
+      example: {
+        statusCode: 409,
+        message: `A ${Role} already exists and cannot be created again.`,
+        error: 'Conflict'
+      }
+    }
+  })
   @ApiResponse({ status: 500, description: 'Internal Server Error' })
   async createAdmin(@Body() createAdminDto: CreateAdminDto) {
 
@@ -37,15 +57,15 @@ export class AdminController {
     } catch (error) {
       console.error('Error creating admin:', error.message);
 
-      if (error instanceof HttpException) {
+      if (error instanceof ConflictException) {
         throw error;
       }
 
-      throw new InternalServerErrorException({
-        message: error.message || 'An unexpected error occurred',
-        statusCode: 500,
-        error: 'Internal Server Error',
-      });
+      if(error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to register admin');
     }
     
 
@@ -57,7 +77,7 @@ export class AdminController {
 
 
   // Route for confirming the admin email
-  @Post('confirm-email/:email')
+  @Post('confirm-email')
   @ApiOperation({ summary: 'Cofirming the admin email through email verification code' })
   @ApiResponse({ status: 200, description: 'Admin email verified successfully' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
@@ -108,20 +128,20 @@ export class AdminController {
 
 
   // Route for retrieving an admin by id
-  @Get('getAdminById/:username')
+  @Get('getAdminById/:adminId')
   @ApiBearerAuth()
   @UseGuards(CognitoAuthGuard, RolesGuard)
   @Roles([Role.SuperAdmin])
-  @ApiOperation({ summary: 'Get admin by username (Super-Admin access only)' })
+  @ApiOperation({ summary: 'Get admin by adminId (Super-Admin access only)' })
   @ApiResponse({ status: 200, description: 'Admin fetched successfully' })
 
-  async getAdminById(@Param('username') username: string): Promise<Partial<Admin>> {
+  async getAdminById(@Param('adminId') adminId: string): Promise<Partial<Admin>> {
 
     try {
-      const admin: Partial<Admin> = await this.adminService.getAdminById(username);
+      const admin: Partial<Admin> = await this.adminService.getAdminById(adminId);
       return admin;
     } catch (error) {
-      console.error(`Error finding the user with id ${username}`, error.message);
+      console.error(`Error finding the user with id ${adminId}`, error.message);
       throw new NotFoundException('No admin record found!');
     }
 
@@ -135,7 +155,7 @@ export class AdminController {
 
 
   // Route for updating an admin by id
-  @Put('updateAdmin/:username')
+  @Put('updateAdmin/:adminId')
   @ApiBearerAuth()
   @UseGuards(CognitoAuthGuard, RolesGuard)
   @Roles([Role.SuperAdmin])
@@ -143,13 +163,13 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Admin updated successfully' })
   @ApiBody({ type: UpdateAdminDto })
 
-  async updateAdmin(@Param('username') username: string, @Body() updateAdminDto: UpdateAdminDto) {
+  async updateAdmin(@Param('adminId') adminId: string, @Body() updateAdminDto: UpdateAdminDto) {
 
     try {
-      const updatedAdmin = await this.adminService.updateAdmin(username, updateAdminDto);
+      const updatedAdmin = await this.adminService.updateAdmin(adminId, updateAdminDto);
       return updatedAdmin;
     } catch (error) {
-      console.error(`Error updating admin with id ${username}`, error.message);
+      console.error(`Error updating admin with id ${adminId}`, error.message);
       throw new InternalServerErrorException('Failed to update admin attributes.');
     }
 
@@ -163,20 +183,20 @@ export class AdminController {
 
 
   // Route for deleting an admin by id
-  @Delete('deleteAdmin/:username')
+  @Delete('deleteAdmin/:adminId')
   @ApiBearerAuth()
   @UseGuards(CognitoAuthGuard, RolesGuard)
   @Roles([Role.SuperAdmin])
   @ApiOperation({ summary: 'Delete admin (Super-Admin access only)' })
   @ApiResponse({ status: 200, description: 'Admin deleted successfully' })
 
-  async deleteAdmin(@Param('username') username: string) {
+  async deleteAdmin(@Param('adminId') adminId: string) {
 
     try {
-      const deletedAdmin = await this.adminService.remove(username);
+      const deletedAdmin = await this.adminService.remove(adminId);
       return deletedAdmin;
     } catch (error) {
-      console.error(`Error deleting the admin with id ${username}`, error.message);
+      console.error(`Error deleting the admin with id ${adminId}`, error.message);
       throw new NotFoundException('No admin record found for deletion!');
     }
 

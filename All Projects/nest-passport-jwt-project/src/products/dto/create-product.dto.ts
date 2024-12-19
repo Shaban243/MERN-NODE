@@ -3,10 +3,10 @@ import { IsNotEmpty, IsString } from "class-validator";
 
 export class CreateProductDto {
 
-    @ApiProperty({description: 'username', required: true})
+    @ApiProperty({ description: 'The user ID for whom the product is being created', required: true })
     @IsString()
     @IsNotEmpty()
-    username: string;
+    userId: string;
 
     @ApiProperty({description: 'name', required: true})
     @IsString()

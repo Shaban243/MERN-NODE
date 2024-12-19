@@ -123,8 +123,17 @@ export class AdminService {
         role: userAttributes['role'],
       };
     } catch (error) {
-      console.error('Error registering admin:', error.message || error);
-      throw new Error('Error registering admin: ' + error.message || error);
+      console.error('Error registering admin:', error);
+
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+
+      if(error instanceof BadRequestException) {
+        throw error;
+      }
+
+    throw new InternalServerErrorException('Error registering admin.');
     }
   }
 

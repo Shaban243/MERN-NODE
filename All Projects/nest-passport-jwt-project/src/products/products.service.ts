@@ -32,63 +32,51 @@ export class ProductsService {
 
   // Function for adding products to a user
   async createProductForUser(
-    createProductDto: CreateProductDto, 
-    username: string,
+    createProductDto: CreateProductDto,
     file: Express.Multer.File
   ): Promise<any> {
-
+    const { userId, name, description } = createProductDto;
+  
     try {
+      // Validate user existence in Cognito
       const params = {
         UserPoolId: process.env.COGNITO_USER_POOL_ID,
-        Username: username,
+        Username: userId,
       };
-
-
+  
       const command = new AdminGetUserCommand(params);
       const response = await cognito.send(command);
-
+  
       if (!response) {
-        throw new NotFoundException(`User with username ${username} not found in Cognito`);
+        throw new NotFoundException(`User with userId ${userId} not found in Cognito`);
       }
-
-      const userId = response.UserAttributes.find(attr => attr.Name === 'sub')?.Value;
-
-      if (!userId) {
-        throw new NotFoundException(`User's 'sub' ID not found in Cognito`);
-      }
-
-      const userRole = response.UserAttributes.find(attr => attr.Name === 'custom:role')?.Value;
-
+  
+      const userRole = response.UserAttributes.find((attr) => attr.Name === 'custom:role')?.Value;
       console.log('User Role:', userRole);
-
-
-      // if (role !== Role.SuperAdmin) {
-      //   throw new ForbiddenException('Only superAdmin can create the product for user');
-      // }
-
+  
+      // Create and save product
       const product = this.productsRepository.create({
-        ...createProductDto,
+        name,
+        description,
         userId,
       });
-
+  
       const savedProduct = await this.productsRepository.save(product);
-
       console.log('Saved Product:', savedProduct);
-
-      let image_url = null;
-
-      if(file) {
-        image_url = await this.uploadService.uploadFile(file, `product/${product}`)
+  
+      let imageUrl = null;
+  
+      if (file) {
+        imageUrl = await this.uploadService.uploadFile(file, `product/${product.id}`);
+        savedProduct.image_url = imageUrl;
+        await this.productsRepository.save(savedProduct);
       }
-
-      savedProduct.image_url = image_url;
-
-      return {savedProduct, image_url};
+  
+      return { savedProduct };
     } catch (error) {
       console.error('Error creating the product:', error.message);
-      throw new ForbiddenException('Only superAdmin can create the product for user');
+      throw new ForbiddenException('Failed to create the product for the user.');
     }
-
   }
 
 
