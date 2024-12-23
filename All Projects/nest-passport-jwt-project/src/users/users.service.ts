@@ -22,6 +22,7 @@ import {
   ConfirmSignUpCommand,
   InternalErrorException,
   NotAuthorizedException,
+  GetUserCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 
 import { CreateUserDto, UserInterface } from './dto/create-user.dto';
@@ -48,6 +49,7 @@ export class UsersService {
   private cognito: CognitoIdentityProviderClient;
 
   constructor(
+    
     private readonly uploadService: UploadService,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
@@ -81,16 +83,16 @@ export class UsersService {
   // Function for registering the user in cognito
   async registerUser(
     createUserDto: CreateUserDto,
-    file: Express.Multer.File
+    imageFile: Express.Multer.File
   ): Promise<any> {
     const { name, email, password, address, } = createUserDto;
 
     try {
 
 
-      if (file) {
+      if (imageFile) {
         const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif']; 
-        const fileExtension = file.originalname.split('.').pop()?.toLowerCase();
+        const fileExtension = imageFile.originalname.split('.').pop()?.toLowerCase();
   
         if (!allowedExtensions.includes(fileExtension)) {
           throw new BadRequestException(
@@ -136,8 +138,8 @@ export class UsersService {
 
       let image_url = null;
 
-      if (file) {
-        image_url = await this.uploadService.uploadFile(file, `user/${userId}`);
+      if (imageFile) {
+        image_url = await this.uploadService.uploadFile(imageFile, `user/${userId}`);
       }
 
       return {
@@ -292,7 +294,15 @@ export class UsersService {
         throw new UnauthorizedException('Access token not found in response');
       }
 
-      return { accessToken };
+      const userAttributes = userResponse.UserAttributes.reduce((acc, attr) => {
+        const key = attr.Name.startsWith('custom:')
+          ? attr.Name.replace('custom:', '')
+          : attr.Name;
+        acc[key] = attr.Value;
+        return acc;
+      }, {});
+
+      return { userAttributes,  accessToken};
 
     } catch (error) {
       console.error('Login failed:', error);
@@ -398,6 +408,44 @@ export class UsersService {
   // }
 
 
+
+
+
+
+
+
+// Function for fetching the user's profile
+async getUserProfile(accessToken: string): Promise<any> {
+  try {
+    const command = new GetUserCommand({
+      AccessToken: accessToken,
+    });
+
+    const response = await cognito.send(command);
+
+    if (!response) {
+      throw new UnauthorizedException('Invalid access token or session expired');
+    }
+
+    const userAttributes = response.UserAttributes.reduce((acc, attr) => {
+      const key = attr.Name.startsWith('custom:') ? attr.Name.replace('custom:', '') : attr.Name;
+      acc[key] = attr.Value;
+      return acc;
+    }, {});
+
+    return {
+      ...userAttributes,
+    };
+
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    if (error.name === 'NotAuthorizedException') {
+      throw new UnauthorizedException('Please log in to access your profile');
+    }
+
+    throw new InternalServerErrorException('Failed to fetch user profile');
+  }
+}
 
 
 
@@ -616,18 +664,45 @@ export class UsersService {
 
 
   // Function for deleting a user by id
-  async remove(id: string): Promise<void> {
+  async remove(id: string): Promise<any> {
 
     try {
-      const params = {
+
+      const getUserParams = {
         UserPoolId: process.env.COGNITO_USER_POOL_ID,
         Username: id,
       };
 
-      const command = new AdminDeleteUserCommand(params);
+      const getUserCommand = new AdminGetUserCommand(getUserParams);
+      const getUserResponse = await cognito.send(getUserCommand);
+  
+  
+      const userAttributes = getUserResponse.UserAttributes.reduce((acc, attr) => {
+        const key = attr.Name.startsWith('custom:') ? attr.Name.replace('custom:', '') : attr.Name;
+        acc[key] = attr.Value;
+        return acc;
+      }, {});
+
+  
+      const userDetails = {
+        id: getUserResponse.Username,
+        ...userAttributes,
+      };
+
+      const deleteParams = {
+        UserPoolId: process.env.COGNITO_USER_POOL_ID,
+        Username: id,
+      };
+
+      const command = new AdminDeleteUserCommand(deleteParams);
       const response = await cognito.send(command);
 
+
       console.log(`User with ID ${id} deleted from Cognito`, response);
+      return {
+        message: 'User deleted successfully, The deleted user details are: ',
+        deletedUser: userDetails,
+      };
     } catch (error) {
       console.error('Error deleting user', error);
       throw new NotFoundException(`User with given id ${id} not found!`);

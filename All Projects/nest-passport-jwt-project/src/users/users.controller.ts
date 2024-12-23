@@ -63,7 +63,7 @@ export class UsersController {
 
 
   @Post('registerUser')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('imageFile'))
   @ApiOperation({ summary: 'Register a new user' })
   @ApiConsumes("multipart/form-data")
   @ApiBody({
@@ -74,7 +74,7 @@ export class UsersController {
         email: { type: "string" },
         password: { type: "string" },
         address: { type: "string" },
-        file: {
+        imageFile: {
           type: "string",
           format: "binary"
         },
@@ -99,7 +99,7 @@ export class UsersController {
     schema: {
       example: {
         statusCode: 400,
-        message:'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.',
+        message: 'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.',
         error: 'BadRequest',
       },
     },
@@ -122,10 +122,10 @@ export class UsersController {
         throw error;
       }
 
-      if(error instanceof BadRequestException) {
+      if (error instanceof BadRequestException) {
         throw error;
       }
-      
+
       throw new InternalServerErrorException('User registration failed');
     }
 
@@ -169,10 +169,14 @@ export class UsersController {
   @Post('login')
   @ApiOperation({ summary: 'Authenticate a user and return a JWT token' })
   @ApiBody({ type: LoginDto })
-  @ApiResponse({ status: 200, description: 'User authenticated successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'User authenticated successfully',
+
+  })
   @ApiResponse({
     status: 403,
-    description: 'Email not verified',
+    description: 'Forbidden',
     schema: {
       example: {
         statusCode: 403,
@@ -183,7 +187,7 @@ export class UsersController {
   })
   @ApiResponse({
     status: 401,
-    description: 'Invalid credentials',
+    description: 'Unauthorized',
     schema: {
       example: {
         statusCode: 401,
@@ -195,10 +199,10 @@ export class UsersController {
 
   @ApiResponse({
     status: 400,
-    description: 'Invalid credentials',
+    description: 'BadRequest',
     schema: {
       example: {
-        statusCode: 401,
+        statusCode: 400,
         message: 'Email and password are required',
         error: 'BadRequest',
       },
@@ -208,7 +212,7 @@ export class UsersController {
 
   @ApiResponse({
     status: 404,
-    description: 'Invalid credentials',
+    description: 'NotFound',
     schema: {
       example: {
         statusCode: 404,
@@ -225,28 +229,70 @@ export class UsersController {
 
 
     try {
-      const token = await this.usersService.login(loginDto);
-      return { token };
+      return await this.usersService.login(loginDto);
+
     } catch (error) {
       console.error('Error during login:', error, error instanceof NotAuthorizedException);
 
       if (error instanceof ForbiddenException) {
         throw error;
       }
-  
+
       if (error instanceof NotAuthorizedException) {
         throw new UnauthorizedException(error.message);
       }
 
-      if(error instanceof BadRequestException) {
+      if (error instanceof BadRequestException) {
         throw error;
       }
 
-  
+
       throw new InternalServerErrorException('Login failed');
     }
 
   }
+
+
+
+
+
+
+
+
+
+
+  @Get('getProfile')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Fetch the logged-in user’s profile' })
+  @ApiResponse({ status: 200, description: 'User profile fetched successfully' })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+    schema: {
+      example: {
+        statusCode: 401,
+        message: 'Please log in to access your profile',
+        error: 'Unauthorized',
+      },
+    },
+  })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  async getProfile(@Req() req): Promise<any> {
+    try {
+      const accessToken = req.headers['authorization']?.replace('Bearer ', '');
+
+      // if (!accessToken) {
+      //   throw new UnauthorizedException('Please log in to access your profile');
+      // }
+
+      const profile = await this.usersService.getUserProfile(accessToken);
+      return { profile };
+    } catch (error) {
+      console.error('Error fetching profile:', error.message);
+      throw error;
+    }
+  }
+
 
 
 
@@ -433,9 +479,9 @@ export class UsersController {
   async remove(@Param('userId') userId: string) {
 
     try {
-      const deletedUser = await this.usersService.remove(userId);
-      console.log('deletedUser is: ', deletedUser);
-      return deletedUser;
+      return await this.usersService.remove(userId);
+      // console.log('deletedUser is: ', deletedUser);
+      
     } catch (error) {
       console.error(`Error deleting the user with id ${userId}`, error.message);
       throw new NotFoundException(`User with given id not found!`);

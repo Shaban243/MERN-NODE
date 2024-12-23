@@ -9,6 +9,8 @@ import { User } from './users/entities/user.entity';
 import { AdminModule } from './admin/admin.module';
 import { Admin } from './admin/entities/admin.entity';
 import { AppController } from './app.controller';
+import { Cart } from './cart/entities/cart.entity';
+import { CartModule } from './cart/cart.module';
 
 @Module({
   imports: [
@@ -26,14 +28,16 @@ import { AppController } from './app.controller';
         username: "postgres.iwzablpjorjvsetzogtn",
         password: "4SrRUHtLARTOGSOh",
         database: "postgres",
-        synchronize: false,
-        entities: [User, Product, Admin],
+        synchronize: true,
+        entities: [User, Product, Admin, Cart],
       }),
       inject: [ConfigService],
     }),
     AuthModule,
     UsersModule,
     ProductsModule,
+    CartModule,
+    AdminModule
   ],
  
   controllers: [AppController],

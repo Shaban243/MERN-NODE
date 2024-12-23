@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, JoinTable } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, JoinTable, OneToMany } from 'typeorm';
 import { Product } from 'src/products/entities/product.entity';
 import { Role } from 'src/auth/roles.enum';
+import { Cart } from 'src/cart/entities/cart.entity';
 
 @Entity('users')
 export class User {
@@ -34,5 +35,8 @@ export class User {
   @ManyToMany( () => Product, product => product.users, { cascade : true})
   @JoinTable({ name: 'User-Products' })
   products: Product[];
+
+  @OneToMany( () => Cart, (cart) => cart.user)
+  cart: Cart[];
 
 }

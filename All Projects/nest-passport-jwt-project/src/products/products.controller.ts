@@ -53,10 +53,10 @@ export class ProductsController {
   // Route for creating a new Product
   @Post('createproduct')
   @UseGuards(CognitoAuthGuard, RolesGuard)
-  @Roles([Role.SuperAdmin, Role.ProductAssistantAdmin])
-  @UseInterceptors(FileInterceptor('file'))
+  @Roles([Role.User, Role.ProductAssistantAdmin, Role.SuperAdmin])
+  @UseInterceptors(FileInterceptor('imageFile'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a new product (Super-Admin && Product-Assistant Admin)' })
+  @ApiOperation({ summary: 'Create a new product (Super-Admin access && ProductAssistant-Admin access' })
   @ApiConsumes("multipart/form-data")
   @ApiBody({
     schema: {
@@ -64,11 +64,12 @@ export class ProductsController {
       properties: {
         name: { type: "string" },
         description: { type: "string" },
-        file: {
+        imageFile: {
           type: "string",
           format: "binary"
         },
       },
+      required: ['name'],
     },
   })
   @ApiResponse({ status: 201, description: 'Product created successfully' })
@@ -99,67 +100,67 @@ export class ProductsController {
 
 
   // Route for create product for specific user
-  @Post('createProduct/:userId')
-  @UseGuards(CognitoAuthGuard, RolesGuard)
-  @UseInterceptors(FileInterceptor('file'))
-  @Roles([Role.SuperAdmin])
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a new product for a specific user (Super-Admin)' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        userId: { type: 'string' },
-        name: { type: 'string' },
-        description: { type: 'string' },
-        file: { type: 'string', format: 'binary' },
-      },
-      required: ['userId', 'name'],
-    },
-  })
-  @ApiResponse({ status: 201, description: 'Product created successfully for the user' })
-  @ApiResponse({
-    status: 404,
-    description: 'User with given id not found',
-    schema: {
-      example: {
-        statusCode: 404,
-        message: 'User with userId not found in Cognito.',
-        error: 'Not Found',
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.',
-    schema: {
-      example: {
-        statusCode: 400,
-        message:'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.',
-        error: 'BadRequest',
-      },
-    },
-  })
-  @ApiResponse({ status: 500, description: 'Failed to create product for the user' })
-  async createProductForUser(
-    @Body() createProductDto: { userId: string; name: string; description: string },
-    @UploadedFile() file: Express.Multer.File
-  ) {
-    try {
+  // @Post('createProduct/:userId')
+  // @UseGuards(CognitoAuthGuard, RolesGuard)
+  // @UseInterceptors(FileInterceptor('imageFile'))
+  // @Roles([Role.User])
+  // @ApiBearerAuth()
+  // @ApiOperation({ summary: 'User can create or add the products into his/her card' })
+  // @ApiConsumes('multipart/form-data')
+  // @ApiBody({
+  //   schema: {
+  //     type: 'object',
+  //     properties: {
+  //       userId: { type: 'string' },
+  //       name: { type: 'string' },
+  //       description: { type: 'string' },
+  //       imageFile: { type: 'string', format: 'binary' },
+  //     },
+  //     required: [ 'name'],
+  //   },
+  // })
+  // @ApiResponse({ status: 201, description: 'Product created successfully for the user' })
+  // @ApiResponse({
+  //   status: 404,
+  //   description: 'User with given id not found',
+  //   schema: {
+  //     example: {
+  //       statusCode: 404,
+  //       message: 'User with userId not found.',
+  //       error: 'Not Found',
+  //     },
+  //   },
+  // })
+  // @ApiResponse({
+  //   status: 400,
+  //   description: 'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.',
+  //   schema: {
+  //     example: {
+  //       statusCode: 400,
+  //       message:'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.',
+  //       error: 'BadRequest',
+  //     },
+  //   },
+  // })
+  // @ApiResponse({ status: 500, description: 'Failed to create product for the user' })
+  // async createProductForUser(
+  //   @Body() createProductDto: {  name: string; description: string },
+  //   @UploadedFile() file: Express.Multer.File
+  // ) {
+  //   try {
       
-      const product = await this.productsService.createProductForUser(createProductDto, file);
-      return product;
-    } catch (error) {
-      console.error('Error in createProductForUser route:', error instanceof NotFoundException);
+  //     const product = await this.productsService.createProductForUser(createProductDto, file);
+  //     return product;
+  //   } catch (error) {
+  //     console.error('Error in createProductForUser route:', error instanceof NotFoundException);
   
-      if (error instanceof HttpException) {
-        throw error;
-      }
+  //     if (error instanceof HttpException) {
+  //       throw error;
+  //     }
   
-      throw new InternalServerErrorException('Failed to create the product for the user.');
-    }
-  }
+  //     throw new InternalServerErrorException('Failed to create the product for the user.');
+  //   }
+  // }
   
 
 
@@ -340,8 +341,8 @@ export class ProductsController {
   @Delete('deleteProduct/:id')
   @ApiBearerAuth()
   @UseGuards(CognitoAuthGuard, RolesGuard)
-  @Roles([Role.SuperAdmin, Role.ProductAssistantAdmin])
-  @ApiOperation({ summary: 'Delete a product by ID (Super-Admin access && Product-Assistant Admin access)' })
+  @Roles([Role.SuperAdmin, Role.ProductAssistantAdmin, Role.User])
+  @ApiOperation({ summary: 'Delete a product by ID (Super-Admin access && Product-Assistant Admin access && User-access)' })
   @ApiParam({ name: 'id', description: 'Product ID to delete', type: String })
   @ApiResponse({ status: 200, description: 'Product deleted successfully' })
   @ApiResponse({ status: 404, description: 'Product not found' })
@@ -349,8 +350,8 @@ export class ProductsController {
   async remove(@Param('id') id: string) {
 
     try {
-      const deletedProduct = await this.productsService.remove(id);
-      return deletedProduct;
+      return await this.productsService.remove(id);
+     
     } catch (error) {
       console.error(`Product with ID ${id} not found`, error.message);
       throw new NotFoundException('No product record with given id found!');

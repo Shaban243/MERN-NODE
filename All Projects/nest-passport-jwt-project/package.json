@@ -37,6 +37,7 @@
     "amazon-cognito-identity-js": "^6.3.12",
     "aws": "^0.0.3-2",
     "aws-cli": "^0.0.2",
+    "aws-sdk": "^2.1692.0",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",

@@ -32,85 +32,85 @@ export class ProductsService {
 
   // Function for adding products to a user
   // Function for adding products to a user
-  async createProductForUser(
-    createProductDto: CreateProductDto,
-    file: Express.Multer.File
-  ): Promise<any> {
-    const { userId, name, description } = createProductDto;
+  // async createProductForUser(
+  //   createProductDto: CreateProductDto,
+  //   file: Express.Multer.File
+  // ): Promise<any> {
+  //   const {  name, description } = createProductDto;
 
-    try {
-
-
-      if (file) {
-        const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif']; 
-        const fileExtension = file.originalname.split('.').pop()?.toLowerCase();
-  
-        if (!allowedExtensions.includes(fileExtension)) {
-          throw new BadRequestException(
-            'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.'
-          );
-        }
-      }
-
-      const params = {
-        UserPoolId: process.env.COGNITO_USER_POOL_ID,
-        Username: userId,
-      };
-
-      console.log('Params:', params);
-
-      const command = new AdminGetUserCommand(params);
-      console.log('command is: ', command);
-      console.log('My data')
-      const response = await cognito.send(command);
-      console.log('response is: ', response);
-      
-
-      const userRole = response.UserAttributes.find((attr) => attr.Name === 'custom:role')?.Value;
-      console.log('User Role:', userRole);
-
-      const fetchedUserId = response.UserAttributes.find((attr) => attr.Name === 'sub')?.Value;
-      console.log('Fetched UserId from Cognito:', fetchedUserId);
-
-      if (fetchedUserId !== userId) {
-        throw new HttpException(`User with userId ${userId} not found in Cognito`, HttpStatus.NOT_FOUND);
-      }
-
-      console.log('UserId matches, proceeding with product creation.');
+  //   try {
 
 
-      const product = this.productsRepository.create({
-        name,
-        description,
-        userId,
-      });
+  //     if (file) {
+  //       const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+  //       const fileExtension = file.originalname.split('.').pop()?.toLowerCase();
 
-      const savedProduct = await this.productsRepository.save(product);
-      console.log('Saved Product:', savedProduct);
+  //       if (!allowedExtensions.includes(fileExtension)) {
+  //         throw new BadRequestException(
+  //           'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.'
+  //         );
+  //       }
+  //     }
 
-      let imageUrl = null;
+      // const params = {
+      //   UserPoolId: process.env.COGNITO_USER_POOL_ID,
+      //   Username: userId,
+      // };
 
-      if (file) {
-        imageUrl = await this.uploadService.uploadFile(file, `product/${product.id}`);
-        savedProduct.image_url = imageUrl;
-        await this.productsRepository.save(savedProduct);
-      }
+      // console.log('Params:', params);
 
-      return { savedProduct };
-    } catch (error) {
-      console.error('Error in createProductForUser:', error.message);
+      // const command = new AdminGetUserCommand(params);
+      // console.log('command is: ', command);
+      // console.log('My data')
+      // const response = await cognito.send(command);
+      // console.log('response is: ', response);
 
-      if (error instanceof HttpException) {
-        throw error;
-      }
 
-      if(error instanceof BadRequestException) {
-        throw error;
-      }
+      // const userRole = response.UserAttributes.find((attr) => attr.Name === 'custom:role')?.Value;
+      // console.log('User Role:', userRole);
 
-      throw new InternalServerErrorException('Failed to create product for specific user.');
-    }
-  }
+      // const fetchedUserId = response.UserAttributes.find((attr) => attr.Name === 'sub')?.Value;
+      // console.log('Fetched UserId from Cognito:', fetchedUserId);
+
+      // if (fetchedUserId !== userId) {
+      //   throw new HttpException(`User with userId ${userId} not found in Cognito`, HttpStatus.NOT_FOUND);
+      // }
+
+  //     console.log('UserId matches, proceeding with product creation.');
+
+
+  //     const product = this.productsRepository.create({
+  //       name,
+  //       description,
+  //       // userId,
+  //     });
+
+  //     const savedProduct = await this.productsRepository.save(product);
+  //     console.log('Saved Product:', savedProduct);
+
+  //     let imageUrl = null;
+
+  //     if (file) {
+  //       imageUrl = await this.uploadService.uploadFile(file, `product/${product.id}`);
+  //       savedProduct.image_url = imageUrl;
+  //       await this.productsRepository.save(savedProduct);
+  //     }
+
+  //     return { savedProduct };
+  //   } catch (error) {
+  //     console.error('Error in createProductForUser:', error.message);
+
+  //     if (error instanceof HttpException) {
+  //       throw error;
+  //     }
+
+  //     if (error instanceof BadRequestException) {
+  //       throw error;
+  //     }
+
+  //     throw new InternalServerErrorException('Failed to create product for specific user.');
+  //   }
+  // }
 
 
 
@@ -313,7 +313,7 @@ export class ProductsService {
 
 
   // function for deleting a Product by id
-  async remove(id: string): Promise<Product> {
+  async remove(id: string): Promise<any> {
 
     try {
 
@@ -323,7 +323,10 @@ export class ProductsService {
       const deletedProduct = await this.productsRepository.remove(product);
       console.log('The deleted product is: ', deletedProduct);
 
-      return deletedProduct;
+      return {
+        message: `product with given id ${id} deleted successfully, The deleted product details are: `,
+        deletedProduct
+      };
 
     } catch (error) {
       console.error('Error Deleting product:', error);
