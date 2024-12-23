@@ -74,8 +74,6 @@ export class UsersController {
         email: { type: "string" },
         password: { type: "string" },
         address: { type: "string" },
-        isActive: { type: "boolean" },
-        role: { type: "string" },
         file: {
           type: "string",
           format: "binary"
@@ -92,6 +90,17 @@ export class UsersController {
         statusCode: 409,
         message: 'A user with this email already exists',
         error: 'Conflict',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.',
+    schema: {
+      example: {
+        statusCode: 400,
+        message:'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.',
+        error: 'BadRequest',
       },
     },
   })
@@ -112,6 +121,11 @@ export class UsersController {
       if (error instanceof ConflictException) {
         throw error;
       }
+
+      if(error instanceof BadRequestException) {
+        throw error;
+      }
+      
       throw new InternalServerErrorException('User registration failed');
     }
 
@@ -228,10 +242,7 @@ export class UsersController {
         throw error;
       }
 
-      if(error instanceof NotFoundException) {
-        throw error;
-      }
-      
+  
       throw new InternalServerErrorException('Login failed');
     }
 

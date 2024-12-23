@@ -87,6 +87,18 @@ export class UsersService {
 
     try {
 
+
+      if (file) {
+        const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif']; 
+        const fileExtension = file.originalname.split('.').pop()?.toLowerCase();
+  
+        if (!allowedExtensions.includes(fileExtension)) {
+          throw new BadRequestException(
+            'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.'
+          );
+        }
+      }
+
       const signUpCommand = new SignUpCommand({
         ClientId: process.env.COGNITO_CLIENT_ID,
         Username: email,
@@ -96,8 +108,8 @@ export class UsersService {
           { Name: 'email', Value: createUserDto.email },
           { Name: 'address', Value: createUserDto.address },
           { Name: 'custom:address', Value: String(createUserDto.address) },
-          { Name: 'custom:isActive', Value: createUserDto.isActive ? '1' : '0' },
-          { Name: 'custom:role', Value: createUserDto.role },
+          { Name: 'custom:isActive', Value: '1'},
+          { Name: 'custom:role', Value: 'user' },
         ],
 
       });
@@ -144,6 +156,9 @@ export class UsersService {
         throw new ConflictException('A user with this email already exists');
       }
 
+      if(error instanceof BadRequestException) {
+        throw error;
+      }
       throw new InternalServerErrorException('Failed to register user');
     }
   }
@@ -204,9 +219,9 @@ export class UsersService {
     const clientSecret = process.env.COGNITO_CLIENT_SECRET;
     const clientId = process.env.COGNITO_CLIENT_ID;
 
-    if (!email || !password) {
-      throw new BadRequestException('Email and password are required');
-    }
+    // if (!email || !password) {
+    //   throw new BadRequestException('invalid email or password');
+    // }
 
     if (!clientSecret || !clientId) {
       throw new BadRequestException(
@@ -258,10 +273,10 @@ export class UsersService {
 
       const authResult = await cognito.send(user);
 
-      // if (!authResult.AuthenticationResult) {
-      //   console.error('AuthenticationResult is undefined');
-      //   throw new UnauthorizedException('Invalid login credentials');
-      // }
+      if (!authResult.AuthenticationResult) {
+        console.error('AuthenticationResult is undefined');
+        throw new UnauthorizedException('Invalid login credentials');
+      }
 
       if (authResult.ChallengeName === 'NEW_PASSWORD_REQUIRED') {
         return {
@@ -294,9 +309,6 @@ export class UsersService {
         throw error;
       }
       
-      if(error instanceof NotFoundException) {
-        throw error;
-      }
   
       throw new InternalServerErrorException('Login failed due to an unexpected error');
     }
@@ -554,10 +566,10 @@ export class UsersService {
       }
 
 
-      if (_updateUserDto.isActive) {
+      if (_updateUserDto.isActive !== undefined) {
         userAttributes.push({
           Name: 'custom:isActive',
-          Value: String(_updateUserDto.isActive),
+          Value: String(_updateUserDto.isActive ? '1' : '0'),
         });
       }
 
@@ -589,7 +601,7 @@ export class UsersService {
 
       return {
         message:
-          'User updated successfully. Please check your newly updated email and verify your account!',
+          'User updated successfully',
       };
     } catch (error) {
       console.error('Error updating user:', error.message || error);

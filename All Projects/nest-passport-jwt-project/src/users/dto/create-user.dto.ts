@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsEmail,
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -52,14 +53,14 @@ export class CreateUserDto {
 
 
   @IsOptional()
-  // @IsBoolean()
-  @ApiProperty({ default: true})
-  isActive: boolean;
+  @IsInt()
+  @ApiProperty({ default: 1 }) // Default for a number
+  isActive: number;
 
-  @IsOptional()
-  @IsEnum(Role)
-  @ApiProperty()
-  role: Role;
+  // @IsOptional()
+  // @IsEnum(Role)
+  // @ApiProperty()
+  // role: Role;
 }
 
 

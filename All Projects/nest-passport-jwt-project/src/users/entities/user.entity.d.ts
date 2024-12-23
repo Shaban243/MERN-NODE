@@ -1,5 +1,5 @@
-import { Product } from 'src/products/entities/product.entity';
 import { Role } from 'src/auth/roles.enum';
+import { Product } from 'src/products/entities/product.entity';
 export declare class User {
     id: string;
     name: string;

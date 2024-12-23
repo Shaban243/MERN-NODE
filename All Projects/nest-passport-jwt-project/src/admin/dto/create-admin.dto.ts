@@ -39,10 +39,10 @@ export class CreateAdminDto {
     @IsString()
     address: string;
 
-    @ApiProperty()
+    @ApiProperty({ default: 1 })
     @IsOptional()
     // @IsBoolean()
-    isActive: boolean;
+    isActive: number;
 
     @ApiProperty()
     @IsOptional()

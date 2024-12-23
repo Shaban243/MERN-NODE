@@ -1,4 +1,4 @@
-import { Inject, Injectable, InternalServerErrorException, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException, NotFoundException, ForbiddenException, BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -31,53 +31,87 @@ export class ProductsService {
 
 
   // Function for adding products to a user
+  // Function for adding products to a user
   async createProductForUser(
     createProductDto: CreateProductDto,
     file: Express.Multer.File
   ): Promise<any> {
     const { userId, name, description } = createProductDto;
-  
+
     try {
-      // Validate user existence in Cognito
+
+
+      if (file) {
+        const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif']; 
+        const fileExtension = file.originalname.split('.').pop()?.toLowerCase();
+  
+        if (!allowedExtensions.includes(fileExtension)) {
+          throw new BadRequestException(
+            'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.'
+          );
+        }
+      }
+
       const params = {
         UserPoolId: process.env.COGNITO_USER_POOL_ID,
         Username: userId,
       };
-  
+
+      console.log('Params:', params);
+
       const command = new AdminGetUserCommand(params);
+      console.log('command is: ', command);
+      console.log('My data')
       const response = await cognito.send(command);
-  
-      if (!response) {
-        throw new NotFoundException(`User with userId ${userId} not found in Cognito`);
-      }
-  
+      console.log('response is: ', response);
+      
+
       const userRole = response.UserAttributes.find((attr) => attr.Name === 'custom:role')?.Value;
       console.log('User Role:', userRole);
-  
-      // Create and save product
+
+      const fetchedUserId = response.UserAttributes.find((attr) => attr.Name === 'sub')?.Value;
+      console.log('Fetched UserId from Cognito:', fetchedUserId);
+
+      if (fetchedUserId !== userId) {
+        throw new HttpException(`User with userId ${userId} not found in Cognito`, HttpStatus.NOT_FOUND);
+      }
+
+      console.log('UserId matches, proceeding with product creation.');
+
+
       const product = this.productsRepository.create({
         name,
         description,
         userId,
       });
-  
+
       const savedProduct = await this.productsRepository.save(product);
       console.log('Saved Product:', savedProduct);
-  
+
       let imageUrl = null;
-  
+
       if (file) {
         imageUrl = await this.uploadService.uploadFile(file, `product/${product.id}`);
         savedProduct.image_url = imageUrl;
         await this.productsRepository.save(savedProduct);
       }
-  
+
       return { savedProduct };
     } catch (error) {
-      console.error('Error creating the product:', error.message);
-      throw new ForbiddenException('Failed to create the product for the user.');
+      console.error('Error in createProductForUser:', error.message);
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      if(error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to create product for specific user.');
     }
   }
+
 
 
 
@@ -108,7 +142,7 @@ export class ProductsService {
 
       let image_url = null;
 
-      if(file) {
+      if (file) {
         image_url = await this.uploadService.uploadFile(file, `product/${product}`);
       }
 
@@ -242,26 +276,26 @@ export class ProductsService {
     try {
 
       const product = await this.productsRepository.findOne({ where: { id: productId } });
-  
-    if (!product) {
-      throw new NotFoundException(`Product with id ${productId} not found`);
-    }
-    
-    const result = await this.productsRepository.update(productId, _updateProductDto);
-  
-    if (result.affected === 0) {
-      throw new NotFoundException(`Product with id ${productId} not found`);
-    }
-  
-    const updatedProduct = await this.productsRepository.findOne({ where: { id: productId } });
-    console.log(`Product with id ${productId} updated successfully.`);
 
-    return { 
-      message: `Product with given id ${productId} updated successfully!`,
-      product: updatedProduct
-    };
-  
-      
+      if (!product) {
+        throw new NotFoundException(`Product with id ${productId} not found`);
+      }
+
+      const result = await this.productsRepository.update(productId, _updateProductDto);
+
+      if (result.affected === 0) {
+        throw new NotFoundException(`Product with id ${productId} not found`);
+      }
+
+      const updatedProduct = await this.productsRepository.findOne({ where: { id: productId } });
+      console.log(`Product with id ${productId} updated successfully.`);
+
+      return {
+        message: `Product with given id ${productId} updated successfully!`,
+        product: updatedProduct
+      };
+
+
     } catch (error) {
       console.error('Error updating the product record', error.message);
       throw new InternalServerErrorException('Failed to update product attributes!');
@@ -269,8 +303,8 @@ export class ProductsService {
 
   }
 
-    
-  
+
+
 
 
 

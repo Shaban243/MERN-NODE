@@ -314,7 +314,7 @@ export class AdminService {
 
 
   // Update admin details
-  async updateAdmin(id: string, updateAdminDto: UpdateAdminDto): Promise<Partial<Admin>> {
+  async updateAdmin(id: string, updateAdminDto: UpdateAdminDto): Promise<Partial<any>> {
 
     try {
       const admin = await this.getAdminById(id);
@@ -346,9 +346,13 @@ export class AdminService {
       }
 
 
-      if (updateAdminDto.isActive) {
-        userAttributes.push({ Name: 'custom:isActive', Value: String(updateAdminDto.isActive) });
+      if (updateAdminDto.isActive !== undefined) {
+        userAttributes.push({
+          Name: 'custom:isActive',
+          Value: String(updateAdminDto.isActive ? '1' : '0'),
+        });
       }
+
 
 
 
@@ -373,6 +377,7 @@ export class AdminService {
 
       const updatedAdmin = await this.getAdminById(id);
       return {
+        message: 'Admin details updated successfuly! The updated admin details are: ',
         id: updatedAdmin.id,
         name: updateAdminDto.name || updatedAdmin.name,
         email: updateAdminDto.email || updatedAdmin.email,

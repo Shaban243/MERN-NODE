@@ -15,6 +15,8 @@ import {
   ForbiddenException,
   NotFoundException,
   BadRequestException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 
 import {
@@ -117,22 +119,41 @@ export class ProductsController {
     },
   })
   @ApiResponse({ status: 201, description: 'Product created successfully for the user' })
+  @ApiResponse({
+    status: 404,
+    description: 'User with given id not found',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'User with userId not found in Cognito.',
+        error: 'Not Found',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.',
+    schema: {
+      example: {
+        statusCode: 400,
+        message:'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.',
+        error: 'BadRequest',
+      },
+    },
+  })
   @ApiResponse({ status: 500, description: 'Failed to create product for the user' })
   async createProductForUser(
-    // @Param('userId') userId: string,
-    @Body() createProductDto: {userId: string, name: string, description: string},
+    @Body() createProductDto: { userId: string; name: string; description: string },
     @UploadedFile() file: Express.Multer.File
   ) {
     try {
-      const product = await this.productsService.createProductForUser(
-        { ...createProductDto },
-        file
-      );
+      
+      const product = await this.productsService.createProductForUser(createProductDto, file);
       return product;
     } catch (error) {
-      console.error('Error creating the product', error.message);
+      console.error('Error in createProductForUser route:', error instanceof NotFoundException);
   
-      if (error instanceof ForbiddenException) {
+      if (error instanceof HttpException) {
         throw error;
       }
   
