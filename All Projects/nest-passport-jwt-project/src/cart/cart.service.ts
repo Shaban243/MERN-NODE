@@ -69,6 +69,44 @@ export class CartService {
 
 
 
+  // Function for updating the quantity of cart-item product
+  async updateProductInCart(userId: string, productId: string, quantity: number ) : Promise<any> {
+
+    try {
+
+      if(quantity <= 0) {
+        throw new NotFoundException('Quantity must be greater than 0');
+      }
+      
+      const cartItem = await this.cartRepository.findOne({
+         where : { user: { id: userId }, product: { id: productId } },
+         relations:  ['user', 'product']
+        });
+
+        if(!cartItem) {
+          throw new NotFoundException('Product not found in cart');
+        }
+
+        cartItem.quantity = quantity;
+
+        return await this.cartRepository.save(cartItem);
+
+    } catch (error) {
+      
+      if(error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to update the cart-item product quantity');
+    }
+
+  }
+
+
+
+
+
+
 
 
 

@@ -42,6 +42,7 @@ import { Role } from 'src/auth/roles.enum';
 import { GetObjectCommand, ListObjectsV2Command, S3Client, UploadPartCommand } from '@aws-sdk/client-s3';
 import { config } from 'process';
 import { UploadService } from 'services/upload.service';
+import { create } from 'domain';
 
 
 @Injectable()
@@ -49,7 +50,7 @@ export class UsersService {
   private cognito: CognitoIdentityProviderClient;
 
   constructor(
-    
+
     private readonly uploadService: UploadService,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
@@ -83,23 +84,11 @@ export class UsersService {
   // Function for registering the user in cognito
   async registerUser(
     createUserDto: CreateUserDto,
-    imageFile: Express.Multer.File
+    imageFile: Express.Multer.File,
   ): Promise<any> {
-    const { name, email, password, address, } = createUserDto;
+    const { name, email, password, address } = createUserDto;
 
     try {
-
-
-      if (imageFile) {
-        const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif']; 
-        const fileExtension = imageFile.originalname.split('.').pop()?.toLowerCase();
-  
-        if (!allowedExtensions.includes(fileExtension)) {
-          throw new BadRequestException(
-            'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.'
-          );
-        }
-      }
 
       const signUpCommand = new SignUpCommand({
         ClientId: process.env.COGNITO_CLIENT_ID,
@@ -110,14 +99,12 @@ export class UsersService {
           { Name: 'email', Value: createUserDto.email },
           { Name: 'address', Value: createUserDto.address },
           { Name: 'custom:address', Value: String(createUserDto.address) },
-          { Name: 'custom:isActive', Value: '1'},
+          { Name: 'custom:isActive', Value: '1' },
           { Name: 'custom:role', Value: 'user' },
         ],
-
       });
 
-      const signUpResponse = await this.cognito.send(signUpCommand);
-
+      await this.cognito.send(signUpCommand);
 
       const getUserCommand = new AdminGetUserCommand({
         UserPoolId: process.env.COGNITO_USER_POOL_ID,
@@ -136,34 +123,76 @@ export class UsersService {
 
       const userId = userResponse.Username;
 
+      const user = this.usersRepository.create({
+        id: userId,
+        name: createUserDto.name,
+        email: createUserDto.email,
+        address: createUserDto.address,
+        isActive: createUserDto['1'],
+        role: createUserDto['user'],
+        image_url: createUserDto.image_url || null,
+      });
+
+
+      const saltRounds = 10;
+      user.password = await bcrypt.hash(createUserDto.password, saltRounds);
+
+
+      const savedUser = await this.usersRepository.save(user);
+
+
       let image_url = null;
+
+      if (imageFile) {
+        const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+        const fileExtension = imageFile.originalname.split('.').pop()?.toLowerCase();
+
+        if (!allowedExtensions.includes(fileExtension)) {
+          throw new BadRequestException(
+            'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.',
+          );
+        }
+      }
 
       if (imageFile) {
         image_url = await this.uploadService.uploadFile(imageFile, `user/${userId}`);
       }
 
+
       return {
-        message: 'User registered successfully. Please check your email and verify your account!. The user details are:',
-        id: userId,
-        name: userAttributes['name'],
-        email: userAttributes['email'],
-        isActive: userAttributes['isActive'] || 'true',
-        address: userAttributes['address'],
-        image_url: image_url || null,
+        message: 'User registered successfully. Please check your email and verify your account!.',
+        savedUser: {
+          id: savedUser.id,
+          name: savedUser.name,
+          email: savedUser.email,
+          isActive: savedUser.isActive || 'true',
+          address: savedUser.address,
+          image_url: image_url || null,
+        },
+
+        // id: userId,
+        // name: userAttributes['name'],
+        // email: userAttributes['email'],
+        // isActive: userAttributes['isActive'] || 'true',
+        // address: userAttributes['address'],
+        // image_url: image_url || null,
       };
     } catch (error) {
+
       console.error('Error registering user:', error);
 
       if (error.name === 'UsernameExistsException') {
         throw new ConflictException('A user with this email already exists');
       }
 
-      if(error instanceof BadRequestException) {
+      if (error instanceof BadRequestException) {
         throw error;
       }
+
       throw new InternalServerErrorException('Failed to register user');
     }
   }
+
 
 
 
@@ -182,14 +211,8 @@ export class UsersService {
 
     try {
 
-      console.log('Printing');
-
       const confirmSignUpCommand = new ConfirmSignUpCommand(params);
-      console.log('ConfirmSignUpCommand is: ', confirmSignUpCommand);
       const response = await this.cognito.send(confirmSignUpCommand);
-
-      console.log('Response from cognito confirmsignupCommand is: ', response);
-
 
       return { message: 'Email confirmed successfully!' };
     } catch (error) {
@@ -302,24 +325,24 @@ export class UsersService {
         return acc;
       }, {});
 
-      return { userAttributes,  accessToken};
+      return { userAttributes, accessToken };
 
     } catch (error) {
       console.error('Login failed:', error);
 
       if (error instanceof ForbiddenException) {
-        throw error; 
+        throw error;
       }
-  
+
       if (error instanceof NotAuthorizedException) {
         throw error;
       }
 
-      if(error instanceof BadRequestException) {
+      if (error instanceof BadRequestException) {
         throw error;
       }
-      
-  
+
+
       throw new InternalServerErrorException('Login failed due to an unexpected error');
     }
 
@@ -414,38 +437,38 @@ export class UsersService {
 
 
 
-// Function for fetching the user's profile
-async getUserProfile(accessToken: string): Promise<any> {
-  try {
-    const command = new GetUserCommand({
-      AccessToken: accessToken,
-    });
+  // Function for fetching the user's profile
+  async getUserProfile(accessToken: string): Promise<any> {
+    try {
+      const command = new GetUserCommand({
+        AccessToken: accessToken,
+      });
 
-    const response = await cognito.send(command);
+      const response = await cognito.send(command);
 
-    if (!response) {
-      throw new UnauthorizedException('Invalid access token or session expired');
+      if (!response) {
+        throw new UnauthorizedException('Invalid access token or session expired');
+      }
+
+      const userAttributes = response.UserAttributes.reduce((acc, attr) => {
+        const key = attr.Name.startsWith('custom:') ? attr.Name.replace('custom:', '') : attr.Name;
+        acc[key] = attr.Value;
+        return acc;
+      }, {});
+
+      return {
+        ...userAttributes,
+      };
+
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      if (error.name === 'NotAuthorizedException') {
+        throw new UnauthorizedException('Please log in to access your profile');
+      }
+
+      throw new InternalServerErrorException('Failed to fetch user profile');
     }
-
-    const userAttributes = response.UserAttributes.reduce((acc, attr) => {
-      const key = attr.Name.startsWith('custom:') ? attr.Name.replace('custom:', '') : attr.Name;
-      acc[key] = attr.Value;
-      return acc;
-    }, {});
-
-    return {
-      ...userAttributes,
-    };
-
-  } catch (error) {
-    console.error('Error fetching user profile:', error);
-    if (error.name === 'NotAuthorizedException') {
-      throw new UnauthorizedException('Please log in to access your profile');
-    }
-
-    throw new InternalServerErrorException('Failed to fetch user profile');
   }
-}
 
 
 
@@ -473,7 +496,10 @@ async getUserProfile(accessToken: string): Promise<any> {
       }));
 
       console.log(userList);
+
+      // const dbUsers = await this.usersRepository.find();
       return userList;
+      // return dbUsers;
 
     } catch (error) {
       console.error('Error retrieving users from Cognito:', error);
@@ -548,6 +574,11 @@ async getUserProfile(accessToken: string): Promise<any> {
         relations: ['users'],
       });
 
+
+      // const user = await this.usersRepository.findOne({
+      //   where: { id: userId }
+      // });
+
       let imageUrls = [];
 
       const listObjectsParams = {
@@ -569,6 +600,7 @@ async getUserProfile(accessToken: string): Promise<any> {
       }
 
       return {
+        // user: user,
         user: response,
         imageUrls,
         products: userProducts,
@@ -586,8 +618,24 @@ async getUserProfile(accessToken: string): Promise<any> {
 
 
   // Function for updating a user by id
-  async update(username: string, _updateUserDto: UpdateUserDto): Promise<any> {
+  async update(userId: string, _updateUserDto: UpdateUserDto): Promise<any> {
     try {
+
+      // const user = await this.usersRepository.findOne({ where: { id: userId } });
+
+      // if (!user) {
+      //   throw new NotFoundException(`User with id ${userId} not found`);
+      // }
+      
+      // const result = await this.usersRepository.update(userId, _updateUserDto)
+
+      // if (result.affected === 0) {
+      //   throw new NotFoundException(`Product with id ${userId} not found`);
+      // }
+
+      // const updatedUser = await this.usersRepository.findOne({ where: {id: userId} });
+      // console.log(`User with given id ${userId} updated successfully` );
+
       const userAttributes = [];
 
       if (_updateUserDto.name) {
@@ -623,7 +671,7 @@ async getUserProfile(accessToken: string): Promise<any> {
 
 
       if (_updateUserDto.password) {
-        await this.resetPassword(username, _updateUserDto.password);
+        await this.resetPassword(userId, _updateUserDto.password);
       }
 
 
@@ -634,13 +682,13 @@ async getUserProfile(accessToken: string): Promise<any> {
 
       const params = {
         UserPoolId: process.env.COGNITO_USER_POOL_ID,
-        Username: username,
+        Username: userId,
         UserAttributes: userAttributes,
       };
 
       const command = new AdminUpdateUserAttributesCommand(params);
       await cognito.send(command);
-      console.log(`User with username ${username} updated successfully.`);
+      console.log(`User with username ${userId} updated successfully.`);
 
 
       if (_updateUserDto.email) {
@@ -650,6 +698,7 @@ async getUserProfile(accessToken: string): Promise<any> {
       return {
         message:
           'User updated successfully',
+          // user: updatedUser
       };
     } catch (error) {
       console.error('Error updating user:', error.message || error);
@@ -668,6 +717,15 @@ async getUserProfile(accessToken: string): Promise<any> {
 
     try {
 
+      // const user = await this.usersRepository.findOne({ where: {id} });
+
+      // if(!user) {
+      //   throw new NotFoundException(`User with given userid ${id} not found!`);
+      // }
+
+      // const deletedUser = await this.usersRepository.remove(user);
+      // console.log(`User with given id ${id} deleted successfully!`);
+
       const getUserParams = {
         UserPoolId: process.env.COGNITO_USER_POOL_ID,
         Username: id,
@@ -675,15 +733,15 @@ async getUserProfile(accessToken: string): Promise<any> {
 
       const getUserCommand = new AdminGetUserCommand(getUserParams);
       const getUserResponse = await cognito.send(getUserCommand);
-  
-  
+
+
       const userAttributes = getUserResponse.UserAttributes.reduce((acc, attr) => {
         const key = attr.Name.startsWith('custom:') ? attr.Name.replace('custom:', '') : attr.Name;
         acc[key] = attr.Value;
         return acc;
       }, {});
 
-  
+
       const userDetails = {
         id: getUserResponse.Username,
         ...userAttributes,
@@ -702,6 +760,7 @@ async getUserProfile(accessToken: string): Promise<any> {
       return {
         message: 'User deleted successfully, The deleted user details are: ',
         deletedUser: userDetails,
+        // deletedUser: deletedUser
       };
     } catch (error) {
       console.error('Error deleting user', error);

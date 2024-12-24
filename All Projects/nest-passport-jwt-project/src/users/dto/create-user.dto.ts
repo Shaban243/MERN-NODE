@@ -57,6 +57,11 @@ export class CreateUserDto {
   @ApiProperty({ default: 1 }) // Default for a number
   isActive: number;
 
+
+  @IsOptional()
+  @IsString()
+  image_url: string
+
   // @IsOptional()
   // @IsEnum(Role)
   // @ApiProperty()
