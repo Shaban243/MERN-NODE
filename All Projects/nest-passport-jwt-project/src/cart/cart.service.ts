@@ -121,7 +121,11 @@ export class CartService {
         throw new NotFoundException('Product not found in the cart');
       }
 
-      return this.cartRepository.remove(cartItem);
+      const deletedItem = this.cartRepository.remove(cartItem);
+
+      return {
+        message: `The cart-item product with given id ${productId} deleted successfully from cart!`,
+      }
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;

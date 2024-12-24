@@ -1,4 +1,4 @@
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { ObjectCannedACL, PutObjectCommand } from "@aws-sdk/client-s3";
 import { Injectable } from "@nestjs/common";
 import { s3 } from "config/aws.config";
 
@@ -12,6 +12,8 @@ export class UploadService   {
             Key: `${keyPrefix}/${Date.now()}_${file.originalname}`,
             Body: file.buffer,
             ContentType: file.mimetype,
+            ACL: "public-read" as ObjectCannedACL,
+            
         };
 
         const command = new PutObjectCommand(params);

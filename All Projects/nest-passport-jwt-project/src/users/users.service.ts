@@ -123,22 +123,7 @@ export class UsersService {
 
       const userId = userResponse.Username;
 
-      const user = this.usersRepository.create({
-        id: userId,
-        name: createUserDto.name,
-        email: createUserDto.email,
-        address: createUserDto.address,
-        isActive: createUserDto['1'],
-        role: createUserDto['user'],
-        image_url: createUserDto.image_url || null,
-      });
 
-
-      const saltRounds = 10;
-      user.password = await bcrypt.hash(createUserDto.password, saltRounds);
-
-
-      const savedUser = await this.usersRepository.save(user);
 
 
       let image_url = null;
@@ -158,6 +143,24 @@ export class UsersService {
         image_url = await this.uploadService.uploadFile(imageFile, `user/${userId}`);
       }
 
+      
+      const user = this.usersRepository.create({
+        id: userId,
+        name: createUserDto.name,
+        email: createUserDto.email,
+        address: createUserDto.address,
+        isActive: createUserDto['1'],
+        role: createUserDto['user'],
+        image_url: image_url || null,
+      });
+
+      
+
+      const saltRounds = 10;
+      user.password = await bcrypt.hash(createUserDto.password, saltRounds);
+
+
+      const savedUser = await this.usersRepository.save(user);
 
       return {
         message: 'User registered successfully. Please check your email and verify your account!.',
