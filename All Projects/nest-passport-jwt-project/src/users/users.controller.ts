@@ -268,6 +268,7 @@ export class UsersController {
   @ApiBearerAuth()
   @UseGuards(CognitoAuthGuard, RolesGuard)
   @ApiOperation({ summary: 'Fetch the logged-in user’s profile (Logged-in users only)' })
+  // @ApiParam({ 'email: string'})
   @ApiResponse({ status: 200, description: 'User profile fetched successfully' })
   @ApiResponse({
     status: 401,
@@ -292,14 +293,14 @@ export class UsersController {
     },
   })
   @ApiResponse({ status: 500, description: 'Failed to retrieve user profile' })
-  async getProfile(@Req() req: Request): Promise<string> {
+  async getProfile(@Req() req: Request, @Param('email') email: string): Promise<string> {
 
     try {
 
       const accessToken = req.headers['authorization'].split(' ')[1];
       await this.usersService.getClaims(accessToken);
 
-      return await this.usersService.getUserProfile(accessToken.email);
+      return await this.usersService.getUserProfile(email);
     } catch (error) {
       console.error('Error fetching profile:', error.message);
 
