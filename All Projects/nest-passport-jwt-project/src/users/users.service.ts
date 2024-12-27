@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  forwardRef,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -30,7 +31,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import { User } from './entities/user.entity';
-import { Not, Repository } from 'typeorm';
+import { FindOptionsWhere, Not, Repository } from 'typeorm';
 import { LoginInterface } from 'src/auth/dto/login.dto';
 import { Product } from 'src/products/entities/product.entity';
 import { ProductsService } from 'src/products/products.service';
@@ -40,23 +41,36 @@ import { cognito_user_pool_id } from 'config/aws.config';
 import { CognitoUserPool } from 'amazon-cognito-identity-js';
 import { Role } from 'src/auth/roles.enum';
 import { GetObjectCommand, ListObjectsV2Command, S3Client, UploadPartCommand } from '@aws-sdk/client-s3';
-import { config } from 'process';
+import { config, emit } from 'process';
 import { UploadService } from 'services/upload.service';
 import { create } from 'domain';
+import { JwtService } from '@nestjs/jwt';
+import { decode } from 'punycode';
+import { AdminService } from 'src/admin/admin.service';
+import { Admin } from 'src/admin/entities/admin.entity';
+import * as jwt from 'jsonwebtoken';
 
 
 @Injectable()
 export class UsersService {
   private cognito: CognitoIdentityProviderClient;
+  // adminRepository: any;
 
   constructor(
 
     private readonly uploadService: UploadService,
+    private readonly jwtService: JwtService,
+    @InjectRepository(Admin)
+    private readonly adminRepository: Repository<Admin>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
 
-    @InjectRepository(Product)
-    private readonly productsRepository: Repository<Product>,
+
+
+    // @Inject(forwardRef(() => AdminService)) 
+    // private readonly adminService: AdminService,
+
+
 
   ) {
 
@@ -85,8 +99,9 @@ export class UsersService {
   async registerUser(
     createUserDto: CreateUserDto,
     imageFile: Express.Multer.File,
-  ): Promise<any> {
-    const { name, email, password, address } = createUserDto;
+  ): Promise<{ message: string, User: any }> {
+
+    const { email, password } = createUserDto;
 
     try {
 
@@ -111,17 +126,17 @@ export class UsersService {
         Username: email,
       });
 
-      const userResponse = await this.cognito.send(getUserCommand);
+      await this.cognito.send(getUserCommand);
 
-      const userAttributes = userResponse.UserAttributes.reduce((acc, attr) => {
-        const key = attr.Name.startsWith('custom:')
-          ? attr.Name.replace('custom:', '')
-          : attr.Name;
-        acc[key] = attr.Value;
-        return acc;
-      }, {});
+      // const userAttributes = userResponse.UserAttributes.reduce((acc, attr) => {
+      //   const key = attr.Name.startsWith('custom:')
+      //     ? attr.Name.replace('custom:', '')
+      //     : attr.Name;
+      //   acc[key] = attr.Value;
+      //   return acc;
+      // }, {});
 
-      const userId = userResponse.Username;
+      // const userId = userResponse.Username;
 
 
 
@@ -140,12 +155,11 @@ export class UsersService {
       }
 
       if (imageFile) {
-        image_url = await this.uploadService.uploadFile(imageFile, `user/${userId}`);
+        image_url = await this.uploadService.uploadFile(imageFile);
       }
 
-      
+
       const user = this.usersRepository.create({
-        id: userId,
         name: createUserDto.name,
         email: createUserDto.email,
         address: createUserDto.address,
@@ -154,24 +168,24 @@ export class UsersService {
         image_url: image_url || null,
       });
 
-      
+
 
       const saltRounds = 10;
       user.password = await bcrypt.hash(createUserDto.password, saltRounds);
-
 
       const savedUser = await this.usersRepository.save(user);
 
       return {
         message: 'User registered successfully. Please check your email and verify your account!.',
-        savedUser: {
-          id: savedUser.id,
-          name: savedUser.name,
-          email: savedUser.email,
-          isActive: savedUser.isActive || 'true',
-          address: savedUser.address,
-          image_url: image_url || null,
-        },
+        User: savedUser
+        // savedUser: {
+        //   id: savedUser.id,
+        //   name: savedUser.name,
+        //   email: savedUser.email,
+        //   isActive: savedUser.isActive || 'true',
+        //   address: savedUser.address,
+        //   image_url: image_url || null,
+        // },
 
         // id: userId,
         // name: userAttributes['name'],
@@ -203,7 +217,7 @@ export class UsersService {
 
 
   // Function for confirming the user email
-  async confirmEmail(email: string, confirmationCode: string): Promise<any> {
+  async confirmEmail(email: string, confirmationCode: string): Promise<{ message: string }> {
 
     const params = {
       ClientId: process.env.COGNITO_CLIENT_ID,
@@ -215,7 +229,7 @@ export class UsersService {
     try {
 
       const confirmSignUpCommand = new ConfirmSignUpCommand(params);
-      const response = await this.cognito.send(confirmSignUpCommand);
+      await this.cognito.send(confirmSignUpCommand);
 
       return { message: 'Email confirmed successfully!' };
     } catch (error) {
@@ -225,6 +239,7 @@ export class UsersService {
 
       if (error.name === 'ExpiredCodeException') {
         throw new error('The confirmation code has expired. Please request a new code!');
+
       } else if (error.name === 'CodeMismatchException') {
         throw new BadRequestException('The confirmation code is incorrect. Please check the code and try again.');
       }
@@ -242,62 +257,36 @@ export class UsersService {
 
 
   // Login function
-  async login(loginDto: LoginInterface) {
-    const { email, password } = loginDto;
-    const clientSecret = process.env.COGNITO_CLIENT_SECRET;
-    const clientId = process.env.COGNITO_CLIENT_ID;
-
-    // if (!email || !password) {
-    //   throw new BadRequestException('invalid email or password');
-    // }
-
-    if (!clientSecret || !clientId) {
-      throw new BadRequestException(
-        'Cognito clientId and clientSecret is missing.',
-      );
-    }
-
-    // const secretHash = this.generateSecretHash(email, clientId, clientSecret);
-
-
-    const getUserCommand = new AdminGetUserCommand({
-      UserPoolId: process.env.COGNITO_USER_POOL_ID,
-      Username: email,
-    });
-
-    const userResponse = await cognito.send(getUserCommand);
-
-    const emailVerified = userResponse.UserAttributes.find(
-      (attr) => attr.Name === 'email_verified',
-    )?.Value;
-
-    if (emailVerified !== 'true') {
-      throw new ForbiddenException('Please verify your email before logging in.');
-    }
-
-    const params = {
-      AuthFlow: 'ADMIN_NO_SRP_AUTH',
-      UserPoolId: cognito_user_pool_id,
-      ClientId: clientId,
-      AuthParameters: {
-        USERNAME: email,
-        PASSWORD: password,
-        // secretHash:'bnsl68vliht7dro0r3jehh94ktng97iog9e2ib86tp7leigpl4n'
-      },
-    };
-
-    const user = new AdminInitiateAuthCommand({
-      AuthFlow: 'ADMIN_NO_SRP_AUTH',
-      UserPoolId: cognito_user_pool_id,
-      ClientId: clientId,
-      AuthParameters: {
-        USERNAME: email,
-        PASSWORD: password,
-      },
-    });
-
+  async login(loginDto: LoginInterface): Promise<{ userDetails: User | Admin, accessToken: string }> {
 
     try {
+
+      const { email, password } = loginDto;
+
+      const clientSecret = process.env.COGNITO_CLIENT_SECRET;
+      const clientId = process.env.COGNITO_CLIENT_ID;
+
+
+      if (!clientSecret || !clientId) {
+        throw new BadRequestException(
+          'Cognito clientId and clientSecret is missing.',
+        );
+      }
+
+
+      const user = new AdminInitiateAuthCommand({
+
+        AuthFlow: 'ADMIN_NO_SRP_AUTH',
+        UserPoolId: process.env.COGNITO_USER_POOL_ID,
+        ClientId: process.env.COGNITO_CLIENT_ID,
+        AuthParameters: {
+          USERNAME: email,
+          PASSWORD: password,
+        },
+
+      });
+
+
 
       const authResult = await cognito.send(user);
 
@@ -306,13 +295,6 @@ export class UsersService {
         throw new UnauthorizedException('Invalid login credentials');
       }
 
-      if (authResult.ChallengeName === 'NEW_PASSWORD_REQUIRED') {
-        return {
-          session: authResult.Session,
-          message: 'Please provide a new password to continue.',
-        };
-
-      }
 
       const accessToken = authResult.AuthenticationResult.AccessToken;
 
@@ -320,15 +302,22 @@ export class UsersService {
         throw new UnauthorizedException('Access token not found in response');
       }
 
-      const userAttributes = userResponse.UserAttributes.reduce((acc, attr) => {
-        const key = attr.Name.startsWith('custom:')
-          ? attr.Name.replace('custom:', '')
-          : attr.Name;
-        acc[key] = attr.Value;
-        return acc;
-      }, {});
+      let userDetails: User | Admin | null = await this.usersRepository.findOne({
+        where: { email: email } as FindOptionsWhere<User>,
+      });
 
-      return { userAttributes, accessToken };
+      if (!userDetails) {
+        userDetails = await this.adminRepository.findOne({
+          where: { email: email } as FindOptionsWhere<Admin>,
+        });
+      }
+
+      if (!userDetails) {
+        throw new NotFoundException('User not found in the database');
+      }
+
+
+      return { userDetails, accessToken };
 
     } catch (error) {
       console.error('Login failed:', error);
@@ -437,36 +426,81 @@ export class UsersService {
 
 
 
+  // Function for fetching the claims from access token
+  async getClaims(accessToken: string) : Promise<{email: string, role: string}>{
+    try {
+
+      const decodedToken = jwt.decode( accessToken, { complete: true} ) as any; 
+
+      if(!decodedToken || !decodedToken.payload) {
+        throw new UnauthorizedException('Invalid access token!');
+      }
+
+      const email = decodedToken.payload.email;
+      const role = decodedToken.payload.role;
+
+      if(!email || !role) {
+        throw new UnauthorizedException('Missing required claims in the access token!');
+      }
+
+      return { email, role }
+
+    } catch (error) {
+      
+    }
+  }
+
 
 
 
   // Function for fetching the user's profile
-  async getUserProfile(accessToken: string): Promise<any> {
+  async getUserProfile(email: string): Promise<any> {
     try {
-      const command = new GetUserCommand({
-        AccessToken: accessToken,
-      });
 
-      const response = await cognito.send(command);
+      const user = await this.usersRepository.findOne({ where: { email: email } });
 
-      if (!response) {
-        throw new UnauthorizedException('Invalid access token or session expired');
+      if (!user) {
+        const admin = await this.adminRepository.findOne({
+          where: { email: email }
+        });
+
+
+        if (!admin) {
+          throw new NotFoundException('User not found!');
+        }
+
+        return admin;
       }
 
-      const userAttributes = response.UserAttributes.reduce((acc, attr) => {
-        const key = attr.Name.startsWith('custom:') ? attr.Name.replace('custom:', '') : attr.Name;
-        acc[key] = attr.Value;
-        return acc;
-      }, {});
+      // const command = new GetUserCommand({
+      //   AccessToken: accessToken,
+      // });
 
-      return {
-        ...userAttributes,
-      };
+      // const response = await cognito.send(command);
+
+      // if (!response) {
+      //   throw new UnauthorizedException('Invalid access token or session expired');
+      // }
+
+      // const userAttributes = response.UserAttributes.reduce((acc, attr) => {
+      //   const key = attr.Name.startsWith('custom:') ? attr.Name.replace('custom:', '') : attr.Name;
+      //   acc[key] = attr.Value;
+      //   return acc;
+      // }, {});
+
+      // return {
+      //   ...userAttributes,
+      // };
+      return user;
 
     } catch (error) {
       console.error('Error fetching user profile:', error);
       if (error.name === 'NotAuthorizedException') {
         throw new UnauthorizedException('Please log in to access your profile');
+      }
+
+      if (error instanceof NotFoundException) {
+        throw error;
       }
 
       throw new InternalServerErrorException('Failed to fetch user profile');
@@ -479,30 +513,35 @@ export class UsersService {
 
 
   // // Function for getting a list of all users
-  async findAll(): Promise<any[]> {
+  async findAll(): Promise<User[]> {
     try {
 
-      const users = await this.getCognitoUserByRole('user');
+      // const users = await this.getCognitoUserByRole('user');
 
-      if (!users || users.length === 0) {
-        return null;
+      // if (!users || users.length === 0) {
+      //   return null;
+      // }
+
+
+      // const userList = users.map(user => ({
+      //   id: user.Username || '',
+      //   name: user.Attributes?.find(attr => attr.Name === 'name')?.Value || '',
+      //   email: user.Attributes?.find(attr => attr.Name === 'email')?.Value || '',
+      //   address: user.Attributes?.find(attr => attr.Name === 'address')?.Value || '',
+      //   isActive: user.Attributes?.find(attr => attr.Name === 'custom:isActive')?.Value === '1',
+      //   role: user.Attributes?.find(attr => attr.Name === 'custom:role')?.Value || ''
+      // }));
+
+      // console.log(userList);
+
+      const dbUsers = await this.usersRepository.find();
+
+      if (!dbUsers) {
+        throw new NotFoundException('No users record found!');
       }
 
-
-      const userList = users.map(user => ({
-        id: user.Username || '',
-        name: user.Attributes?.find(attr => attr.Name === 'name')?.Value || '',
-        email: user.Attributes?.find(attr => attr.Name === 'email')?.Value || '',
-        address: user.Attributes?.find(attr => attr.Name === 'address')?.Value || '',
-        isActive: user.Attributes?.find(attr => attr.Name === 'custom:isActive')?.Value === '1',
-        role: user.Attributes?.find(attr => attr.Name === 'custom:role')?.Value || ''
-      }));
-
-      console.log(userList);
-
-      // const dbUsers = await this.usersRepository.find();
-      return userList;
-      // return dbUsers;
+      // return userList;
+      return dbUsers;
 
     } catch (error) {
       console.error('Error retrieving users from Cognito:', error);
@@ -520,25 +559,25 @@ export class UsersService {
 
 
   // Function to fetch Cognito users by role
-  async getCognitoUserByRole(role: string): Promise<any[]> {
-    try {
-      const params = {
-        UserPoolId: process.env.COGNITO_USER_POOL_ID,
-      };
+  // async getCognitoUserByRole(role: string): Promise<any[]> {
+  //   try {
+  //     const params = {
+  //       UserPoolId: process.env.COGNITO_USER_POOL_ID,
+  //     };
 
-      const data = new ListUsersCommand(params);
-      const response = await cognito.send(data);
+  //     const data = new ListUsersCommand(params);
+  //     const response = await cognito.send(data);
 
-      const filteredUsers = response.Users?.filter(user =>
-        user.Attributes?.some(attr => attr.Name === 'custom:role' && attr.Value === role)
-      );
+  //     const filteredUsers = response.Users?.filter(user =>
+  //       user.Attributes?.some(attr => attr.Name === 'custom:role' && attr.Value === role)
+  //     );
 
-      return filteredUsers || [];
-    } catch (error) {
-      console.error(`Error fetching users by role (${role}) from Cognito:`, error);
-      throw new NotFoundException('Failed to fetch users by role from Cognito');
-    }
-  }
+  //     return filteredUsers || [];
+  //   } catch (error) {
+  //     console.error(`Error fetching users by role (${role}) from Cognito:`, error);
+  //     throw new NotFoundException('Failed to fetch users by role from Cognito');
+  //   }
+  // }
 
 
 
@@ -547,42 +586,41 @@ export class UsersService {
 
 
   // Function for getting a user by username and their associated products
-  async findUserById(username: string): Promise<any> {
+  async findUserById(userId: string): Promise<{userData: any}> {
 
     const s3Client = new S3Client({
       region: process.env.AWS_REGION,
     });
 
     try {
-      const params = {
-        UserPoolId: process.env.COGNITO_USER_POOL_ID,
-        Username: username,
-      };
+      // const params = {
+      //   UserPoolId: process.env.COGNITO_USER_POOL_ID,
+      //   Username: username,
+      // };
 
-      const userCommand = new AdminGetUserCommand(params);
-      const response = await cognito.send(userCommand);
+      // const userCommand = new AdminGetUserCommand(params);
+      // const response = await cognito.send(userCommand);
 
-      if (!response) {
-        throw new NotFoundException(`User with username ${username} not found in Cognito`);
-      }
+  //     // if (!response) {
+  //     //   throw new NotFoundException(`User with given id not found!`);
+  //     // }
 
-      const userId = response.UserAttributes.find(attr => attr.Name === 'sub')?.Value;
+  //     // const userId = response.UserAttributes.find(attr => attr.Name === 'sub')?.Value;
 
-      if (!userId) {
-        throw new NotFoundException(`User's 'sub' ID not found in Cognito`);
-      }
+  //     // if (!userId) {
+  //     //   throw new NotFoundException(`User with given id not found!`);
+  //     // }
 
-      const userProducts = await this.productsRepository.find({
-        where: { userId },
-        relations: ['users'],
+      const user = await this.usersRepository.findOne({
+        where: { id: userId },
+        relations: ['cart', 'cart.product'],
       });
 
+      if (!user) {
+        throw new NotFoundException(`User with given id ${userId} not found!`);
+      }
 
-      // const user = await this.usersRepository.findOne({
-      //   where: { id: userId }
-      // });
-
-      let imageUrls = [];
+      let imageUrls : string[] = [];
 
       const listObjectsParams = {
         Bucket: process.env.AWS_BUCKET_NAME,
@@ -602,15 +640,16 @@ export class UsersService {
         console.log('No images found for this user');
       }
 
-      return {
-        // user: user,
-        user: response,
-        imageUrls,
-        products: userProducts,
-      };
+      return { 
+        userData: user
+       };
     } catch (error) {
       console.error('Error retrieving user from Cognito:', error);
-      throw new BadRequestException('Failed to retrieve user from Cognito');
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to retrieve user!');
     }
   }
 
@@ -621,92 +660,100 @@ export class UsersService {
 
 
   // Function for updating a user by id
-  async update(userId: string, _updateUserDto: UpdateUserDto): Promise<any> {
+  async update(userId: string, _updateUserDto: UpdateUserDto): Promise<{ message: string, updatedUser: any }> {
+
     try {
 
-      // const user = await this.usersRepository.findOne({ where: { id: userId } });
+      const user = await this.usersRepository.findOne({ where: { id: userId } });
 
-      // if (!user) {
-      //   throw new NotFoundException(`User with id ${userId} not found`);
+      if (!user) {
+        throw new NotFoundException(`User with id ${userId} not found`);
+      }
+
+      const result = await this.usersRepository.update(userId, _updateUserDto)
+
+      if (result.affected === 0) {
+        throw new NotFoundException(`Product with id ${userId} not found`);
+      }
+
+      const updatedUser = await this.usersRepository.findOne({ where: { id: userId } });
+      console.log(`User with given id ${userId} updated successfully`);
+
+      // const userAttributes = [];
+
+      // if (_updateUserDto.name) {
+      //   userAttributes.push({
+      //     Name: 'name',
+      //     Value: String(_updateUserDto.name),
+      //   });
       // }
-      
-      // const result = await this.usersRepository.update(userId, _updateUserDto)
 
-      // if (result.affected === 0) {
-      //   throw new NotFoundException(`Product with id ${userId} not found`);
+
+      // if (_updateUserDto.email) {
+      //   userAttributes.push(
+      //     { Name: 'email', Value: String(_updateUserDto.email) },
+      //     // { Name: 'email_verified', Value: 'false' }
+      //   );
       // }
 
-      // const updatedUser = await this.usersRepository.findOne({ where: {id: userId} });
-      // console.log(`User with given id ${userId} updated successfully` );
 
-      const userAttributes = [];
-
-      if (_updateUserDto.name) {
-        userAttributes.push({
-          Name: 'name',
-          Value: String(_updateUserDto.name),
-        });
-      }
+      // if (_updateUserDto.address) {
+      //   userAttributes.push({
+      //     Name: 'custom:address',
+      //     Value: String(_updateUserDto.address),
+      //   });
+      // }
 
 
-      if (_updateUserDto.email) {
-        userAttributes.push(
-          { Name: 'email', Value: String(_updateUserDto.email) },
-          // { Name: 'email_verified', Value: 'false' }
-        );
-      }
+      // if (_updateUserDto.isActive !== undefined) {
+      //   userAttributes.push({
+      //     Name: 'custom:isActive',
+      //     Value: String(_updateUserDto.isActive ? '1' : '0'),
+      //   });
+      // }
 
 
-      if (_updateUserDto.address) {
-        userAttributes.push({
-          Name: 'custom:address',
-          Value: String(_updateUserDto.address),
-        });
-      }
+      // if (_updateUserDto.password) {
+      //   await this.resetPassword(userId, _updateUserDto.password);
+      // }
 
 
-      if (_updateUserDto.isActive !== undefined) {
-        userAttributes.push({
-          Name: 'custom:isActive',
-          Value: String(_updateUserDto.isActive ? '1' : '0'),
-        });
-      }
+      // if (userAttributes.length === 0) {
+      //   throw new NotFoundException('No attributes to update.');
+      // }
 
 
-      if (_updateUserDto.password) {
-        await this.resetPassword(userId, _updateUserDto.password);
-      }
+      // const params = {
+      //   UserPoolId: process.env.COGNITO_USER_POOL_ID,
+      //   Username: userId,
+      //   UserAttributes: userAttributes,
+      // };
+
+      // const command = new AdminUpdateUserAttributesCommand(params);
+      // await cognito.send(command);
+      // console.log(`User with username ${userId} updated successfully.`);
 
 
-      if (userAttributes.length === 0) {
-        throw new NotFoundException('No attributes to update.');
-      }
-
-
-      const params = {
-        UserPoolId: process.env.COGNITO_USER_POOL_ID,
-        Username: userId,
-        UserAttributes: userAttributes,
-      };
-
-      const command = new AdminUpdateUserAttributesCommand(params);
-      await cognito.send(command);
-      console.log(`User with username ${userId} updated successfully.`);
-
-
-      if (_updateUserDto.email) {
-        console.log(`A verification email has been sent to ${_updateUserDto.email}.`);
-      }
+      // if (_updateUserDto.email) {
+      //   console.log(`A verification email has been sent to ${_updateUserDto.email}.`);
+      // }
 
       return {
-        message:
-          'User updated successfully',
-          // user: updatedUser
+        message: 'User updated successfully',
+        updatedUser
       };
+
     } catch (error) {
       console.error('Error updating user:', error.message || error);
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+
       throw new InternalServerErrorException('Failed to update user attributes.');
     }
+
   }
 
 
@@ -716,58 +763,34 @@ export class UsersService {
 
 
   // Function for deleting a user by id
-  async remove(id: string): Promise<any> {
+  async remove(id: string): Promise<{ message: string, deletedUser: any }> {
 
     try {
 
-      // const user = await this.usersRepository.findOne({ where: {id} });
+      const user = await this.usersRepository.findOne({ where: { id } });
 
-      // if(!user) {
-      //   throw new NotFoundException(`User with given userid ${id} not found!`);
-      // }
+      if (!user) {
+        throw new NotFoundException(`User with given userid ${id} not found!`);
+      }
 
-      // const deletedUser = await this.usersRepository.remove(user);
-      // console.log(`User with given id ${id} deleted successfully!`);
+      const deletedUser = await this.usersRepository.remove(user);
+      console.log(`User with given id ${id} deleted successfully!`);
 
-      const getUserParams = {
-        UserPoolId: process.env.COGNITO_USER_POOL_ID,
-        Username: id,
-      };
-
-      const getUserCommand = new AdminGetUserCommand(getUserParams);
-      const getUserResponse = await cognito.send(getUserCommand);
-
-
-      const userAttributes = getUserResponse.UserAttributes.reduce((acc, attr) => {
-        const key = attr.Name.startsWith('custom:') ? attr.Name.replace('custom:', '') : attr.Name;
-        acc[key] = attr.Value;
-        return acc;
-      }, {});
-
-
-      const userDetails = {
-        id: getUserResponse.Username,
-        ...userAttributes,
-      };
-
-      const deleteParams = {
-        UserPoolId: process.env.COGNITO_USER_POOL_ID,
-        Username: id,
-      };
-
-      const command = new AdminDeleteUserCommand(deleteParams);
-      const response = await cognito.send(command);
-
-
-      console.log(`User with ID ${id} deleted from Cognito`, response);
       return {
         message: 'User deleted successfully, The deleted user details are: ',
-        deletedUser: userDetails,
-        // deletedUser: deletedUser
+        deletedUser
       };
+
     } catch (error) {
+
       console.error('Error deleting user', error);
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
       throw new NotFoundException(`User with given id ${id} not found!`);
+
     }
 
   }
@@ -876,27 +899,27 @@ export class UsersService {
 
 
   // Function for resetting the user's password
-  private async resetPassword(username: string, newPassword: string): Promise<void> {
+  // private async resetPassword(username: string, newPassword: string): Promise<void> {
 
-    try {
+  //   try {
 
-      const params = {
-        UserPoolId: process.env.COGNITO_USER_POOL_ID,
-        Username: username,
-        Password: newPassword,
-        Permanent: true,
-      };
+  //     const params = {
+  //       UserPoolId: process.env.COGNITO_USER_POOL_ID,
+  //       Username: username,
+  //       Password: newPassword,
+  //       Permanent: true,
+  //     };
 
-      const command = new AdminSetUserPasswordCommand(params);
-      await cognito.send(command);
+  //     const command = new AdminSetUserPasswordCommand(params);
+  //     await cognito.send(command);
 
-      console.log(`Password for user with username ${username} updated successfully`);
-    } catch (error) {
-      console.error('Error resetting password', error.message || error);
-      throw new ConflictException('Failed to update password');
-    }
+  //     console.log(`Password for user with username ${username} updated successfully`);
+  //   } catch (error) {
+  //     console.error('Error resetting password', error.message || error);
+  //     throw new ConflictException('Failed to update password');
+  //   }
 
-  }
+  // }
 
 
 }

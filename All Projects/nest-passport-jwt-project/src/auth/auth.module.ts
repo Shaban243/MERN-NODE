@@ -23,8 +23,8 @@ import { UploadService } from 'services/upload.service';
 
   imports: [
     AdminModule,
-    PassportModule,
     UsersModule,
+    PassportModule,
     ProductsModule,
     JwtModule.register({
       global: true,

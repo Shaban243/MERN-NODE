@@ -4,12 +4,13 @@ import { Role } from 'src/auth/roles.enum';
 
 export class UpdateAdminDto extends PartialType(CreateAdminDto) {
 
-    name: any;
-    email: any;
-    password: any;
-    address: any;
-    isActive: any;
+    name: string;
+    email: string;
+    password: string;
+    address: string;
+    isActive: number;
     role: Role
   }
 
 
+  

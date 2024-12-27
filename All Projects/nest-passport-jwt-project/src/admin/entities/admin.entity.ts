@@ -14,14 +14,14 @@ export class Admin {
   email: string;
 
   @Column()
-  password?: string;
+  password: string;
 
   @Column()
   address: string;
 
 
   @Column()
-  isActive: boolean;
+  isActive: number;
 
   @Column({ type: 'enum', enum: Role })
   role: Role;

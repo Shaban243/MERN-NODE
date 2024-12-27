@@ -19,10 +19,6 @@ import { User } from "src/users/entities/user.entity";
         @Column({ nullable: true})
         image_url: string;
 
-        @Column({ nullable: true})
-        userId: string;
-
-
         @ManyToMany( () => User, user => user.products, { onDelete: 'SET NULL'})
         users: User[];
     

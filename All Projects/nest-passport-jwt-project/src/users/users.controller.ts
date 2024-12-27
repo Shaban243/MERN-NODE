@@ -48,6 +48,8 @@ import { Roles } from 'src/auth/gurards/roles.decorator';
 import { ConfirmUserDto } from './dto/confirm-user.dto';
 import { ConfirmEmailDto } from './dto/confirm-email.dto';
 import { NotAuthorizedException } from '@aws-sdk/client-cognito-identity-provider';
+import { isTaxId } from 'class-validator';
+import { InstanceChecker } from 'typeorm';
 
 
 
@@ -79,6 +81,7 @@ export class UsersController {
           format: "binary"
         },
       },
+      required: ['name', 'email', 'password', 'address']
     },
   })
   @ApiResponse({ status: 200, description: 'User registered successfully' })
@@ -263,7 +266,8 @@ export class UsersController {
 
   @Get('getProfile')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Fetch the logged-in user’s profile' })
+  @UseGuards(CognitoAuthGuard, RolesGuard)
+  @ApiOperation({ summary: 'Fetch the logged-in user’s profile (Logged-in users only)' })
   @ApiResponse({ status: 200, description: 'User profile fetched successfully' })
   @ApiResponse({
     status: 401,
@@ -276,20 +280,38 @@ export class UsersController {
       },
     },
   })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
-  async getProfile(@Req() req): Promise<any> {
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'User not found!',
+        error: 'NotFound',
+      },
+    },
+  })
+  @ApiResponse({ status: 500, description: 'Failed to retrieve user profile' })
+  async getProfile(@Req() req: Request): Promise<string> {
+
     try {
-      const accessToken = req.headers['authorization']?.replace('Bearer ', '');
 
-      // if (!accessToken) {
-      //   throw new UnauthorizedException('Please log in to access your profile');
-      // }
+      const accessToken = req.headers['authorization'].split(' ')[1];
+      await this.usersService.getClaims(accessToken);
 
-      const profile = await this.usersService.getUserProfile(accessToken);
-      return { profile };
+      return await this.usersService.getUserProfile(accessToken.email);
     } catch (error) {
       console.error('Error fetching profile:', error.message);
-      throw error;
+
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to retrieve user profile');
     }
   }
 
@@ -417,15 +439,32 @@ export class UsersController {
   @Roles([Role.SuperAdmin, Role.UserAssistantAdmin])
   @ApiOperation({ summary: 'Get details of a specific user by userId (Super-Admin access && Users-Assistant Admin access)' })
   @ApiResponse({ status: 200, description: 'User details retrieved successfully' })
-  @ApiResponse({ status: 404, description: 'User not found' })
-  async findOne(@Param('userId') userId: string): Promise<User> {
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'User with given id not found!',
+        error: 'NotFound'
+      }
+    }
+  })
+  @ApiResponse({ status: 500, description: 'Failed to retrieve user by id' })
+  async findOne(@Param('userId') userId: string): Promise<{ userData: User }> {
 
     try {
-      const user = await this.usersService.findUserById(userId);
-      return user;
+
+      return await this.usersService.findUserById(userId);
+
     } catch (error) {
       console.error(`Error finding the user with id ${userId}`, error.message);
-      throw new NotFoundException('No user record found!');
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to retrieve the user by given id!')
     }
 
   }
@@ -481,7 +520,7 @@ export class UsersController {
     try {
       return await this.usersService.remove(userId);
       // console.log('deletedUser is: ', deletedUser);
-      
+
     } catch (error) {
       console.error(`Error deleting the user with id ${userId}`, error.message);
       throw new NotFoundException(`User with given id not found!`);

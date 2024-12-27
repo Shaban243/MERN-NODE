@@ -281,18 +281,37 @@ export class ProductsController {
   @UseGuards(CognitoAuthGuard, RolesGuard)
   @Roles([Role.SuperAdmin, Role.ProductAssistantAdmin])
   @ApiOperation({ summary: 'Retrieve a product by ID (Super-Admin access && Product-Assistant Admin access)' })
-  @ApiParam({ name: 'id', description: 'Product ID to retrieve', type: String })
   @ApiResponse({ status: 200, description: 'Product retrieved successfully' })
-  @ApiResponse({ status: 404, description: 'Product not found' })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Product not found',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: `Product with given id not found!`,
+        error: 'NotFound'
+      }
+    }
+   })
+   @ApiResponse({ 
+    status:500,
+    description: 'Failed to find the product with given id'
+   })
 
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('productId') productId: string) {
 
     try {
-      const product = await this.productsService.findOne(id);
-      return product;
+
+      return await this.productsService.getProduct(productId);
+
     } catch (error) {
-      console.error(`Product with ID ${id} not found`, error.message);
-      throw new NotFoundException(`No Product record with given id ${id} found!`);
+      console.error(`Product with ID ${productId} not found`, error.message);
+
+      if(error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(`Failed to find the product with given id!`);
     }
 
   }

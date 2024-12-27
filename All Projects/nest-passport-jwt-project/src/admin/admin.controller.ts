@@ -26,19 +26,19 @@ export class AdminController {
   @ApiOperation({ summary: 'Create a new admin (Super-Admin access only)' })
   @ApiBody({ type: CreateAdminDto })
   @ApiResponse({ status: 201, description: 'Admin created successfully' })
-  @ApiResponse({ 
-    status: 400, 
+  @ApiResponse({
+    status: 400,
     description: 'Bad Request',
     schema: {
       example: {
         statusCode: 400,
-        message:  'Role must be one of the following: Super-Admin, User-Assistant-Admin, Product-Assistant-Admin.',
+        message: 'Role must be one of the following: Super-Admin, User-Assistant-Admin, Product-Assistant-Admin.',
         error: 'BadRequest'
       }
     }
   })
-  @ApiResponse({ 
-    status: 409, 
+  @ApiResponse({
+    status: 409,
     description: 'Conflict - Admin already exists',
     schema: {
       example: {
@@ -61,13 +61,13 @@ export class AdminController {
         throw error;
       }
 
-      if(error instanceof BadRequestException) {
+      if (error instanceof BadRequestException) {
         throw error;
       }
 
       throw new InternalServerErrorException('Failed to register admin');
     }
-    
+
 
   }
 
@@ -93,6 +93,7 @@ export class AdminController {
 
     } catch (error) {
       console.error('Error confirming the admin email', error.message);
+
       throw new InternalServerErrorException('Error confirming the admin email');
     }
 
@@ -107,6 +108,18 @@ export class AdminController {
   @Roles([Role.SuperAdmin])
   @ApiOperation({ summary: 'Get all admins (Super-Admin access only)' })
   @ApiResponse({ status: 200, description: 'All admins fetched successfully' })
+  @ApiResponse({
+    status: 404,
+    description: 'Admins record not found',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'Admins record not found!',
+        error: 'NotFound'
+      }
+    }
+  })
+  @ApiResponse({ status: 500, description: 'Failed to retrieved admins record' })
 
   async getAllAdmins(@Req() req) {
 
@@ -115,6 +128,11 @@ export class AdminController {
       return this.adminService.getAllAdmins();
     } catch (error) {
       console.error('Error retrieving admins:', error.message);
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
       throw new NotFoundException('No admin record found!');
     }
 
@@ -134,18 +152,38 @@ export class AdminController {
   @Roles([Role.SuperAdmin])
   @ApiOperation({ summary: 'Get admin by adminId (Super-Admin access only)' })
   @ApiResponse({ status: 200, description: 'Admin fetched successfully' })
-
-  async getAdminById(@Param('adminId') adminId: string): Promise<Partial<Admin>> {
-
-    try {
-      const admin: Partial<Admin> = await this.adminService.getAdminById(adminId);
-      return admin;
-    } catch (error) {
-      console.error(`Error finding the user with id ${adminId}`, error.message);
-      throw new NotFoundException('No admin record found!');
+  @ApiResponse({
+    status: 404,
+    description: 'Admin not found',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'Admin with given id not found',
+        error: 'NotFound'
+      }
     }
+  })
+  @ApiResponse({ status: 500, description: 'Failed to retrieve admin record' })
+  async getAdminById(@Param('adminId') adminId: string): Promise<{ message: string; admin: Partial<Admin> }> {
+    try {
 
+      const admin = await this.adminService.getAdminById(adminId);
+
+      return {
+        message: 'Admin fetched successfully.',
+        admin,  
+      };
+    } catch (error) {
+      console.error(`Error finding the admin with id ${adminId}:`, error.message);
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to retrieve admin record.');
+    }
   }
+
 
 
 
@@ -160,8 +198,20 @@ export class AdminController {
   @UseGuards(CognitoAuthGuard, RolesGuard)
   @Roles([Role.SuperAdmin])
   @ApiOperation({ summary: 'Update admin details (Super-Admin access only)' })
-  @ApiResponse({ status: 200, description: 'Admin updated successfully' })
   @ApiBody({ type: UpdateAdminDto })
+  @ApiResponse({ status: 200, description: 'Admin updated successfully' })
+  @ApiResponse({
+    status: 404,
+    description: 'Admin not found',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'Admin with given id not found',
+        error: 'NotFound'
+      }
+    }
+  })
+  @ApiResponse({ status: 500, description: 'Failed to update Admin record' })
 
   async updateAdmin(@Param('adminId') adminId: string, @Body() updateAdminDto: UpdateAdminDto) {
 
@@ -170,6 +220,11 @@ export class AdminController {
       return updatedAdmin;
     } catch (error) {
       console.error(`Error updating admin with id ${adminId}`, error.message);
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
       throw new InternalServerErrorException('Failed to update admin attributes.');
     }
 
@@ -189,6 +244,18 @@ export class AdminController {
   @Roles([Role.SuperAdmin])
   @ApiOperation({ summary: 'Delete admin (Super-Admin access only)' })
   @ApiResponse({ status: 200, description: 'Admin deleted successfully' })
+  @ApiResponse({
+    status: 404,
+    description: 'Admin not found',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'Admin with given id not found',
+        error: 'NotFound'
+      }
+    }
+  })
+  @ApiResponse({ status: 500, description: 'Failed to delete admin' })
 
   async deleteAdmin(@Param('adminId') adminId: string) {
 
@@ -197,6 +264,11 @@ export class AdminController {
       return deletedAdmin;
     } catch (error) {
       console.error(`Error deleting the admin with id ${adminId}`, error.message);
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }     
+      
       throw new NotFoundException('No admin record found for deletion!');
     }
 

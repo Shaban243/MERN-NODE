@@ -32,7 +32,7 @@ export class User {
   image_url: string;
 
 
-  @ManyToMany( () => Product, product => product.users, { cascade : true})
+  @ManyToMany( () => Product, product => product.users, { cascade : true })
   @JoinTable({ name: 'User-Products' })
   products: Product[];
 

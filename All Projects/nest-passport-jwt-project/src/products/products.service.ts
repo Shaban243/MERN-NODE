@@ -137,18 +137,20 @@ export class ProductsService {
       console.log('_createProductDto', CreateProductDto);
 
       const product = this.productsRepository.create({ ..._createProductDto });
-
       console.log('product ', product);
+
+      const savedProduct = await this.productsRepository.save(product);
+      console.log('savedProduct is: ', savedProduct);
 
       let image_url = null;
 
       if (file) {
-        image_url = await this.uploadService.uploadFile(file, `product/${product}`);
+        image_url = await this.uploadService.uploadFile(file);
       }
 
-      product.image_url = image_url;
+      savedProduct.image_url = image_url;
 
-      return await this.productsRepository.save(product);
+      return await this.productsRepository.save(savedProduct);
 
     } catch (error) {
       console.error('Error creating product:', error);
@@ -208,19 +210,19 @@ export class ProductsService {
 
   // Function for getting product data with user details
 
-  async findOne(id: string): Promise<any> {
-    try {
+  // async findOne(id: string): Promise<any> {
+  //   try {
 
-      const product = await this.productsRepository.findOne({
-        where: { id },
-        relations: ['users'],
-      });
+  //     const product = await this.productsRepository.findOne({
+  //       where: { id },
+  //       relations: ['users'],
+  //     });
 
-      if (!product) {
-        throw new NotFoundException(`Product with given id ${id} not found!`);
-      }
+  //     if (!product) {
+  //       throw new NotFoundException(`Product with given id ${id} not found!`);
+  //     }
 
-      console.log(`Product found:`, product);
+  //     console.log(`Product found:`, product);
 
       // const userId = product?.userId; 
       // console.log('User Id is: ', userId);
@@ -250,15 +252,47 @@ export class ProductsService {
       // }, {});
 
 
-      return {
-        product: product,
-        // user: user,       
-      };
+  //     return {
+  //       product: product,
+  //       // user: user,       
+  //     };
 
+  //   } catch (error) {
+  //     console.error('Error finding product and user:', error);
+  //     throw new NotFoundException('No Product record with given id found!');
+  //   }
+  // }
+
+
+
+
+  // Function for getting the product by id
+  async getProduct(productId: string) :Promise<Product> {
+
+    try {
+      
+      const product = await this.productsRepository.findOne({ 
+        where: { id: productId },
+        relations: ['cart', 'cart.user'],
+      });
+
+      console.log('product is: ', product);
+
+      if(!product) {
+        throw new NotFoundException(`Product with given id ${productId} not found!`);
+      }
+
+      return product;
+  
     } catch (error) {
-      console.error('Error finding product and user:', error);
-      throw new NotFoundException('No Product record with given id found!');
+
+      if(error instanceof NotFoundException) {
+        throw error;
+      }
+      
+      throw new InternalServerErrorException('Failed to fetch the product details!');
     }
+
   }
 
 

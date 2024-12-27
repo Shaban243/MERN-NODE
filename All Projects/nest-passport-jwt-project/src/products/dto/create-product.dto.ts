@@ -7,6 +7,8 @@ export class CreateProductDto {
     // @IsString()
     // @IsNotEmpty()
     // userId: string;
+    
+
 
     @ApiProperty({description: 'name', required: true})
     @IsString()
