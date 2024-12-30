@@ -39,7 +39,7 @@ export class AdminController {
   })
   @ApiResponse({
     status: 409,
-    description: 'Conflict - Admin already exists',
+    description: 'Conflict',
     schema: {
       example: {
         statusCode: 409,
@@ -48,7 +48,7 @@ export class AdminController {
       }
     }
   })
-  @ApiResponse({ status: 500, description: 'Internal Server Error' })
+  @ApiResponse({ status: 500, description: 'Failed to register an admin' })
   async createAdmin(@Body() createAdminDto: CreateAdminDto) {
 
     try {
@@ -110,7 +110,7 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'All admins fetched successfully' })
   @ApiResponse({
     status: 404,
-    description: 'Admins record not found',
+    description: 'NotFound',
     schema: {
       example: {
         statusCode: 404,
@@ -153,8 +153,19 @@ export class AdminController {
   @ApiOperation({ summary: 'Get admin by adminId (Super-Admin access only)' })
   @ApiResponse({ status: 200, description: 'Admin fetched successfully' })
   @ApiResponse({
+    status: 400,
+    description: 'BadRequest',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Invalid Admin Id format, Please enter correct Id for retrieving the admin record!',
+        error: ':BadRequest'
+      }
+    }
+  })
+  @ApiResponse({
     status: 404,
-    description: 'Admin not found',
+    description: 'NotFound',
     schema: {
       example: {
         statusCode: 404,
@@ -180,6 +191,10 @@ export class AdminController {
         throw error;
       }
 
+      if(error instanceof BadRequestException) {
+        throw error;
+      }
+
       throw new InternalServerErrorException('Failed to retrieve admin record.');
     }
   }
@@ -201,8 +216,19 @@ export class AdminController {
   @ApiBody({ type: UpdateAdminDto })
   @ApiResponse({ status: 200, description: 'Admin updated successfully' })
   @ApiResponse({
+    status: 400,
+    description: 'BadRequest',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Invalid Admin Id format, Please enter correct Id for updating the admin record!',
+        error: ':BadRequest'
+      }
+    }
+  })
+  @ApiResponse({
     status: 404,
-    description: 'Admin not found',
+    description: 'NotFound',
     schema: {
       example: {
         statusCode: 404,
@@ -220,6 +246,10 @@ export class AdminController {
       return updatedAdmin;
     } catch (error) {
       console.error(`Error updating admin with id ${adminId}`, error.message);
+
+      if(error instanceof BadRequestException) {
+        throw error;
+      }
 
       if (error instanceof NotFoundException) {
         throw error;
@@ -245,8 +275,19 @@ export class AdminController {
   @ApiOperation({ summary: 'Delete admin (Super-Admin access only)' })
   @ApiResponse({ status: 200, description: 'Admin deleted successfully' })
   @ApiResponse({
+    status: 400,
+    description: 'BadRequest',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Invalid Admin Id format, Please enter correct Id for deleting the admin record!',
+        error: ':BadRequest'
+      }
+    }
+  })
+  @ApiResponse({
     status: 404,
-    description: 'Admin not found',
+    description: 'NotFound',
     schema: {
       example: {
         statusCode: 404,
@@ -267,7 +308,11 @@ export class AdminController {
 
       if (error instanceof NotFoundException) {
         throw error;
-      }     
+      }  
+      
+      if(error instanceof BadRequestException) {
+        throw error;
+      }
       
       throw new NotFoundException('No admin record found for deletion!');
     }

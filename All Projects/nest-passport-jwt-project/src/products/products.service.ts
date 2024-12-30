@@ -52,29 +52,29 @@ export class ProductsService {
   //       }
   //     }
 
-      // const params = {
-      //   UserPoolId: process.env.COGNITO_USER_POOL_ID,
-      //   Username: userId,
-      // };
+  // const params = {
+  //   UserPoolId: process.env.COGNITO_USER_POOL_ID,
+  //   Username: userId,
+  // };
 
-      // console.log('Params:', params);
+  // console.log('Params:', params);
 
-      // const command = new AdminGetUserCommand(params);
-      // console.log('command is: ', command);
-      // console.log('My data')
-      // const response = await cognito.send(command);
-      // console.log('response is: ', response);
+  // const command = new AdminGetUserCommand(params);
+  // console.log('command is: ', command);
+  // console.log('My data')
+  // const response = await cognito.send(command);
+  // console.log('response is: ', response);
 
 
-      // const userRole = response.UserAttributes.find((attr) => attr.Name === 'custom:role')?.Value;
-      // console.log('User Role:', userRole);
+  // const userRole = response.UserAttributes.find((attr) => attr.Name === 'custom:role')?.Value;
+  // console.log('User Role:', userRole);
 
-      // const fetchedUserId = response.UserAttributes.find((attr) => attr.Name === 'sub')?.Value;
-      // console.log('Fetched UserId from Cognito:', fetchedUserId);
+  // const fetchedUserId = response.UserAttributes.find((attr) => attr.Name === 'sub')?.Value;
+  // console.log('Fetched UserId from Cognito:', fetchedUserId);
 
-      // if (fetchedUserId !== userId) {
-      //   throw new HttpException(`User with userId ${userId} not found in Cognito`, HttpStatus.NOT_FOUND);
-      // }
+  // if (fetchedUserId !== userId) {
+  //   throw new HttpException(`User with userId ${userId} not found in Cognito`, HttpStatus.NOT_FOUND);
+  // }
 
   //     console.log('UserId matches, proceeding with product creation.');
 
@@ -130,22 +130,30 @@ export class ProductsService {
   // function for creating a new Product
   async createProduct(
     _createProductDto: CreateProductDto,
-    file: Express.Multer.File
+    imageFile: Express.Multer.File
   ): Promise<Product> {
 
     try {
-      console.log('_createProductDto', CreateProductDto);
 
       const product = this.productsRepository.create({ ..._createProductDto });
-      console.log('product ', product);
 
       const savedProduct = await this.productsRepository.save(product);
-      console.log('savedProduct is: ', savedProduct);
 
       let image_url = null;
 
-      if (file) {
-        image_url = await this.uploadService.uploadFile(file);
+      if (imageFile) {
+        const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+        const fileExtension = imageFile.originalname.split('.').pop()?.toLowerCase();
+
+        if (!allowedExtensions.includes(fileExtension)) {
+          throw new BadRequestException(
+            'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.',
+          );
+        }
+      }
+
+      if (imageFile) {
+        image_url = await this.uploadService.uploadFile(imageFile);
       }
 
       savedProduct.image_url = image_url;
@@ -153,8 +161,14 @@ export class ProductsService {
       return await this.productsRepository.save(savedProduct);
 
     } catch (error) {
+
       console.error('Error creating product:', error);
-      throw new BadRequestException('Failed to create product');
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to create product');
     }
 
   }
@@ -168,11 +182,13 @@ export class ProductsService {
   async updateProductImage(ProductId: string, image_url: string): Promise<void> {
 
     try {
+
       await this.productsRepository.update(ProductId, { image_url });
-      console.log(`Image URL updated for Product ID: ${ProductId}`);
 
     } catch (error) {
+
       console.error(`Error updating image URL for Product ID ${ProductId}:`, error.message);
+
       throw new InternalServerErrorException('Failed to update product image URL');
     }
 
@@ -189,13 +205,22 @@ export class ProductsService {
 
     try {
       const products = await this.productsRepository.find();
-      console.log('All products data is: ', products);
+      
+      if(!products) {
+        throw new NotFoundException('No products record found!');
+      }
 
       return products;
 
     } catch (error) {
+      
       console.error('Error retrieving products: ', error);
-      throw new NotFoundException('No Products record found!');
+
+      if (error.name === 'NotFoundException') {
+        throw new NotFoundException('No products record found');
+      }
+
+      throw new InternalServerErrorException('Failed to retrieve products!');
     }
 
   }
@@ -224,32 +249,32 @@ export class ProductsService {
 
   //     console.log(`Product found:`, product);
 
-      // const userId = product?.userId; 
-      // console.log('User Id is: ', userId);
+  // const userId = product?.userId; 
+  // console.log('User Id is: ', userId);
 
-      // if (!userId) {
-      //   throw new NotFoundException(`No associated userId found for product with id ${id}`);
-      // }
+  // if (!userId) {
+  //   throw new NotFoundException(`No associated userId found for product with id ${id}`);
+  // }
 
-      // const cognitoParams = {
-      //   UserPoolId: process.env.COGNITO_USER_POOL_ID,
-      //   Username: userId,  
-      // };
+  // const cognitoParams = {
+  //   UserPoolId: process.env.COGNITO_USER_POOL_ID,
+  //   Username: userId,  
+  // };
 
-      // const cognitoCommand = new AdminGetUserCommand(cognitoParams);
-      // const cognitoResponse = await cognito.send(cognitoCommand);
+  // const cognitoCommand = new AdminGetUserCommand(cognitoParams);
+  // const cognitoResponse = await cognito.send(cognitoCommand);
 
-      // console.log('Cognito Response is: ', cognitoResponse);
+  // console.log('Cognito Response is: ', cognitoResponse);
 
-      // if (!cognitoResponse || !cognitoResponse.UserAttributes) {
-      //   throw new NotFoundException(`User with sub-id ${userId} does not exist in Cognito.`);
-      // }
+  // if (!cognitoResponse || !cognitoResponse.UserAttributes) {
+  //   throw new NotFoundException(`User with sub-id ${userId} does not exist in Cognito.`);
+  // }
 
 
-      // const user = cognitoResponse.UserAttributes.reduce((acc, attr) => {
-      //   acc[attr.Name] = attr.Value;
-      //   return acc;
-      // }, {});
+  // const user = cognitoResponse.UserAttributes.reduce((acc, attr) => {
+  //   acc[attr.Name] = attr.Value;
+  //   return acc;
+  // }, {});
 
 
   //     return {
@@ -267,29 +292,30 @@ export class ProductsService {
 
 
   // Function for getting the product by id
-  async getProduct(productId: string) :Promise<Product> {
+  async getProductById(productId: string): Promise<Product> {
 
     try {
-      
-      const product = await this.productsRepository.findOne({ 
+
+      const product = await this.productsRepository.findOne({
         where: { id: productId },
         relations: ['cart', 'cart.user'],
       });
 
-      console.log('product is: ', product);
-
-      if(!product) {
+      if (!product) {
         throw new NotFoundException(`Product with given id ${productId} not found!`);
       }
 
       return product;
-  
+
     } catch (error) {
 
-      if(error instanceof NotFoundException) {
+      if (error instanceof NotFoundException) {
         throw error;
+        
+      } else if (error.name === 'QueryFailedError') {
+        throw new BadRequestException('Invalid Product Id format, Please enter correct Id for retrieving the product record!')
       }
-      
+
       throw new InternalServerErrorException('Failed to fetch the product details!');
     }
 
@@ -332,7 +358,15 @@ export class ProductsService {
 
     } catch (error) {
       console.error('Error updating the product record', error.message);
-      throw new InternalServerErrorException('Failed to update product attributes!');
+
+      if (error instanceof NotFoundException) {
+        throw error;
+
+      } else if(error.name === 'QueryFailedError') {
+        throw new BadRequestException('Invalid product Id format, Please enter correct Id for updating the product record!')
+      }
+
+      throw new InternalServerErrorException('Failed to update product record!');
     }
 
   }
@@ -347,15 +381,17 @@ export class ProductsService {
 
 
   // function for deleting a Product by id
-  async remove(id: string): Promise<any> {
+  async remove(id: string): Promise<{message: string, deletedProduct: Product}> {
 
     try {
 
       const product = await this.productsRepository.findOne({ where: { id } });
-      if (!product) throw new NotFoundException(`Product with given id ${id} not found!`);
+
+      if (!product) {
+        throw new NotFoundException(`Product with given id ${id} not found!`);
+      }
 
       const deletedProduct = await this.productsRepository.remove(product);
-      console.log('The deleted product is: ', deletedProduct);
 
       return {
         message: `product with given id ${id} deleted successfully, The deleted product details are: `,
@@ -364,7 +400,15 @@ export class ProductsService {
 
     } catch (error) {
       console.error('Error Deleting product:', error);
-      throw new NotFoundException('No product record with given id found!');
+
+      if (error instanceof NotFoundException) {
+        throw error;
+
+      } else if(error.name === 'QueryFailedError') {
+        throw new BadRequestException('Invalid product Id format, Please enter correct Id for updating the product record!')
+      }
+
+      throw new InternalServerErrorException('Failed to delete product record with given id');
     }
 
   }

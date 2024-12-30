@@ -24,6 +24,7 @@ import {
   InternalErrorException,
   NotAuthorizedException,
   GetUserCommand,
+  UsernameAttributeType,
 } from '@aws-sdk/client-cognito-identity-provider';
 
 import { CreateUserDto, UserInterface } from './dto/create-user.dto';
@@ -40,7 +41,7 @@ import { cognito } from 'config/aws.config';
 import { cognito_user_pool_id } from 'config/aws.config';
 import { CognitoUserPool } from 'amazon-cognito-identity-js';
 import { Role } from 'src/auth/roles.enum';
-import { GetObjectCommand, ListObjectsV2Command, S3Client, UploadPartCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand, ListObjectsV2Command, NotFound, S3Client, UploadPartCommand } from '@aws-sdk/client-s3';
 import { config, emit } from 'process';
 import { UploadService } from 'services/upload.service';
 import { create } from 'domain';
@@ -49,6 +50,7 @@ import { decode } from 'punycode';
 import { AdminService } from 'src/admin/admin.service';
 import { Admin } from 'src/admin/entities/admin.entity';
 import * as jwt from 'jsonwebtoken';
+import { profile } from 'console';
 
 
 @Injectable()
@@ -58,19 +60,12 @@ export class UsersService {
 
   constructor(
 
-    private readonly uploadService: UploadService,
-    private readonly jwtService: JwtService,
     @InjectRepository(Admin)
     private readonly adminRepository: Repository<Admin>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
 
-
-
-    // @Inject(forwardRef(() => AdminService)) 
-    // private readonly adminService: AdminService,
-
-
+    private readonly uploadService: UploadService,
 
   ) {
 
@@ -93,8 +88,6 @@ export class UsersService {
 
 
 
-
-
   // Function for registering the user in cognito
   async registerUser(
     createUserDto: CreateUserDto,
@@ -106,6 +99,7 @@ export class UsersService {
     try {
 
       const signUpCommand = new SignUpCommand({
+
         ClientId: process.env.COGNITO_CLIENT_ID,
         Username: email,
         Password: password,
@@ -117,6 +111,7 @@ export class UsersService {
           { Name: 'custom:isActive', Value: '1' },
           { Name: 'custom:role', Value: 'user' },
         ],
+
       });
 
       await this.cognito.send(signUpCommand);
@@ -144,6 +139,7 @@ export class UsersService {
       let image_url = null;
 
       if (imageFile) {
+
         const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
         const fileExtension = imageFile.originalname.split('.').pop()?.toLowerCase();
 
@@ -152,7 +148,9 @@ export class UsersService {
             'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.',
           );
         }
+
       }
+
 
       if (imageFile) {
         image_url = await this.uploadService.uploadFile(imageFile);
@@ -167,7 +165,6 @@ export class UsersService {
         role: createUserDto['user'],
         image_url: image_url || null,
       });
-
 
 
       const saltRounds = 10;
@@ -194,6 +191,7 @@ export class UsersService {
         // address: userAttributes['address'],
         // image_url: image_url || null,
       };
+
     } catch (error) {
 
       console.error('Error registering user:', error);
@@ -208,6 +206,7 @@ export class UsersService {
 
       throw new InternalServerErrorException('Failed to register user');
     }
+
   }
 
 
@@ -220,6 +219,7 @@ export class UsersService {
   async confirmEmail(email: string, confirmationCode: string): Promise<{ message: string }> {
 
     const params = {
+
       ClientId: process.env.COGNITO_CLIENT_ID,
       Username: email,
       ConfirmationCode: confirmationCode,
@@ -232,13 +232,14 @@ export class UsersService {
       await this.cognito.send(confirmSignUpCommand);
 
       return { message: 'Email confirmed successfully!' };
+
     } catch (error) {
 
       console.error('Error confirming email:', error);
       console.error('Detailed error:', JSON.stringify(error, null, 2));
 
       if (error.name === 'ExpiredCodeException') {
-        throw new error('The confirmation code has expired. Please request a new code!');
+        throw new BadRequestException('The confirmation code has expired. Please request a new code!');
 
       } else if (error.name === 'CodeMismatchException') {
         throw new BadRequestException('The confirmation code is incorrect. Please check the code and try again.');
@@ -266,15 +267,28 @@ export class UsersService {
       const clientSecret = process.env.COGNITO_CLIENT_SECRET;
       const clientId = process.env.COGNITO_CLIENT_ID;
 
-
       if (!clientSecret || !clientId) {
         throw new BadRequestException(
-          'Cognito clientId and clientSecret is missing.',
+          'Cognito clientId and clientSecret are missing.',
         );
       }
 
+      const command = new AdminGetUserCommand({
+        UserPoolId: process.env.COGNITO_USER_POOL_ID,
+        Username: email,
+      });
 
-      const user = new AdminInitiateAuthCommand({
+      const response = await cognito.send(command);
+
+      const emailStatus = response.UserAttributes?.find(
+        (attr) => attr.Name === 'email_verified',
+      )?.Value;
+
+      if (emailStatus !== 'true') {
+        throw new ForbiddenException('Please verify your email before logging in!');
+      }
+
+      const authCommand = new AdminInitiateAuthCommand({
 
         AuthFlow: 'ADMIN_NO_SRP_AUTH',
         UserPoolId: process.env.COGNITO_USER_POOL_ID,
@@ -286,15 +300,12 @@ export class UsersService {
 
       });
 
-
-
-      const authResult = await cognito.send(user);
+      const authResult = await cognito.send(authCommand);
 
       if (!authResult.AuthenticationResult) {
         console.error('AuthenticationResult is undefined');
         throw new UnauthorizedException('Invalid login credentials');
       }
-
 
       const accessToken = authResult.AuthenticationResult.AccessToken;
 
@@ -316,10 +327,10 @@ export class UsersService {
         throw new NotFoundException('User not found in the database');
       }
 
-
-      return { userDetails, accessToken };
+      return { userDetails, accessToken  };
 
     } catch (error) {
+      
       console.error('Login failed:', error);
 
       if (error instanceof ForbiddenException) {
@@ -335,10 +346,13 @@ export class UsersService {
       }
 
 
-      throw new InternalServerErrorException('Login failed due to an unexpected error');
+      throw new InternalServerErrorException(
+        'Login failed due to an unexpected error',
+      );
     }
 
   }
+
 
 
 
@@ -377,7 +391,19 @@ export class UsersService {
 
   // Function for updating User Image
   async updateUserImage(userId: string, image_url: string): Promise<void> {
-    await this.usersRepository.update(userId, { image_url: image_url });
+
+    try {
+
+      await this.usersRepository.update(userId, { image_url: image_url });
+      
+    } catch (error) {
+      
+      console.error(`Error updating image URL for Product ID ${userId}:`, error.message);
+
+      throw new InternalServerErrorException('Failed to update User image URL');
+      
+    }
+    
   }
 
 
@@ -427,50 +453,58 @@ export class UsersService {
 
 
   // Function for fetching the claims from access token
-  async getClaims(accessToken: string) : Promise<{email: string, role: string}>{
+  async getClaims(accessToken: string): Promise<{ email: string }> {
+
     try {
 
-      const decodedToken = jwt.decode( accessToken, { complete: true} ) as any; 
+      const decodedToken = jwt.decode(accessToken, { complete: true }) as any;
 
-      if(!decodedToken || !decodedToken.payload) {
+      if (!decodedToken || !decodedToken.payload) {
         throw new UnauthorizedException('Invalid access token!');
       }
 
       const email = decodedToken.payload.email;
-      const role = decodedToken.payload.role;
 
-      if(!email || !role) {
+      if (!email) {
         throw new UnauthorizedException('Missing required claims in the access token!');
       }
 
-      return { email, role }
+      return { email }
 
     } catch (error) {
-      
+
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to retrieve the claims from access token!');
+
     }
+
   }
 
 
 
 
   // Function for fetching the user's profile
-  async getUserProfile(email: string): Promise<any> {
+  async getUserProfile(email: string): Promise<{type: string, profile: User | Admin}> {
     try {
 
       const user = await this.usersRepository.findOne({ where: { email: email } });
 
-      if (!user) {
-        const admin = await this.adminRepository.findOne({
-          where: { email: email }
-        });
-
-
-        if (!admin) {
-          throw new NotFoundException('User not found!');
-        }
-
-        return admin;
+      if (user) {
+        return { type: 'user', profile: user };
       }
+
+      const admin = await this.adminRepository.findOne({ where: { email: email } });
+
+      if (admin) {
+        return { type: 'admin', profile: admin };
+      }
+
+      throw new NotFoundException('User not found!');
+
+
 
       // const command = new GetUserCommand({
       //   AccessToken: accessToken,
@@ -491,10 +525,12 @@ export class UsersService {
       // return {
       //   ...userAttributes,
       // };
-      return user;
+
 
     } catch (error) {
+
       console.error('Error fetching user profile:', error);
+
       if (error.name === 'NotAuthorizedException') {
         throw new UnauthorizedException('Please log in to access your profile');
       }
@@ -505,6 +541,7 @@ export class UsersService {
 
       throw new InternalServerErrorException('Failed to fetch user profile');
     }
+
   }
 
 
@@ -514,6 +551,7 @@ export class UsersService {
 
   // // Function for getting a list of all users
   async findAll(): Promise<User[]> {
+
     try {
 
       // const users = await this.getCognitoUserByRole('user');
@@ -552,6 +590,7 @@ export class UsersService {
 
       throw new InternalServerErrorException('Failed to retrieve users from Cognito');
     }
+
   }
 
 
@@ -585,8 +624,8 @@ export class UsersService {
 
 
 
-  // Function for getting a user by username and their associated products
-  async findUserById(userId: string): Promise<{userData: any}> {
+  // Function for getting a user by userId and their associated products
+  async findUserById(userId: string): Promise<{ userData: User }> {
 
     const s3Client = new S3Client({
       region: process.env.AWS_REGION,
@@ -601,15 +640,15 @@ export class UsersService {
       // const userCommand = new AdminGetUserCommand(params);
       // const response = await cognito.send(userCommand);
 
-  //     // if (!response) {
-  //     //   throw new NotFoundException(`User with given id not found!`);
-  //     // }
+      //     // if (!response) {
+      //     //   throw new NotFoundException(`User with given id not found!`);
+      //     // }
 
-  //     // const userId = response.UserAttributes.find(attr => attr.Name === 'sub')?.Value;
+      //     // const userId = response.UserAttributes.find(attr => attr.Name === 'sub')?.Value;
 
-  //     // if (!userId) {
-  //     //   throw new NotFoundException(`User with given id not found!`);
-  //     // }
+      //     // if (!userId) {
+      //     //   throw new NotFoundException(`User with given id not found!`);
+      //     // }
 
       const user = await this.usersRepository.findOne({
         where: { id: userId },
@@ -620,7 +659,7 @@ export class UsersService {
         throw new NotFoundException(`User with given id ${userId} not found!`);
       }
 
-      let imageUrls : string[] = [];
+      let imageUrls: string[] = [];
 
       const listObjectsParams = {
         Bucket: process.env.AWS_BUCKET_NAME,
@@ -636,21 +675,28 @@ export class UsersService {
         });
 
         console.log('All image URLs:', imageUrls);
+
       } else {
         console.log('No images found for this user');
       }
 
-      return { 
+      return {
         userData: user
-       };
+      };
+
     } catch (error) {
       console.error('Error retrieving user from Cognito:', error);
 
       if (error instanceof NotFoundException) {
         throw error;
+
+      } else if (error.name === 'QueryFailedError') {
+        throw new BadRequestException('Invalid User Id format, Please enter correct Id for retrieving the user record!')
       }
+
       throw new InternalServerErrorException('Failed to retrieve user!');
     }
+
   }
 
 
@@ -660,7 +706,7 @@ export class UsersService {
 
 
   // Function for updating a user by id
-  async update(userId: string, _updateUserDto: UpdateUserDto): Promise<{ message: string, updatedUser: any }> {
+  async update(userId: string, _updateUserDto: UpdateUserDto): Promise<{ message: string, updatedUser: User }> {
 
     try {
 
@@ -668,6 +714,11 @@ export class UsersService {
 
       if (!user) {
         throw new NotFoundException(`User with id ${userId} not found`);
+      }
+
+      if(_updateUserDto.password) {
+      const saltRounds = 10;
+      _updateUserDto.password = await bcrypt.hash(_updateUserDto.password, saltRounds);
       }
 
       const result = await this.usersRepository.update(userId, _updateUserDto)
@@ -679,77 +730,21 @@ export class UsersService {
       const updatedUser = await this.usersRepository.findOne({ where: { id: userId } });
       console.log(`User with given id ${userId} updated successfully`);
 
-      // const userAttributes = [];
-
-      // if (_updateUserDto.name) {
-      //   userAttributes.push({
-      //     Name: 'name',
-      //     Value: String(_updateUserDto.name),
-      //   });
-      // }
-
-
-      // if (_updateUserDto.email) {
-      //   userAttributes.push(
-      //     { Name: 'email', Value: String(_updateUserDto.email) },
-      //     // { Name: 'email_verified', Value: 'false' }
-      //   );
-      // }
-
-
-      // if (_updateUserDto.address) {
-      //   userAttributes.push({
-      //     Name: 'custom:address',
-      //     Value: String(_updateUserDto.address),
-      //   });
-      // }
-
-
-      // if (_updateUserDto.isActive !== undefined) {
-      //   userAttributes.push({
-      //     Name: 'custom:isActive',
-      //     Value: String(_updateUserDto.isActive ? '1' : '0'),
-      //   });
-      // }
-
-
-      // if (_updateUserDto.password) {
-      //   await this.resetPassword(userId, _updateUserDto.password);
-      // }
-
-
-      // if (userAttributes.length === 0) {
-      //   throw new NotFoundException('No attributes to update.');
-      // }
-
-
-      // const params = {
-      //   UserPoolId: process.env.COGNITO_USER_POOL_ID,
-      //   Username: userId,
-      //   UserAttributes: userAttributes,
-      // };
-
-      // const command = new AdminUpdateUserAttributesCommand(params);
-      // await cognito.send(command);
-      // console.log(`User with username ${userId} updated successfully.`);
-
-
-      // if (_updateUserDto.email) {
-      //   console.log(`A verification email has been sent to ${_updateUserDto.email}.`);
-      // }
-
       return {
         message: 'User updated successfully',
         updatedUser
       };
 
     } catch (error) {
+
       console.error('Error updating user:', error.message || error);
 
       if (error instanceof NotFoundException) {
         throw error;
-      }
 
+      } else if (error.name === 'QueryFailedError') {
+        throw new BadRequestException('Invalid user Id format, Please enter correct Id for updating the user record!')
+      }
 
       throw new InternalServerErrorException('Failed to update user attributes.');
     }
@@ -763,7 +758,7 @@ export class UsersService {
 
 
   // Function for deleting a user by id
-  async remove(id: string): Promise<{ message: string, deletedUser: any }> {
+  async remove(id: string): Promise<{ message: string, deletedUser: User }> {
 
     try {
 
@@ -787,6 +782,9 @@ export class UsersService {
 
       if (error instanceof NotFoundException) {
         throw error;
+
+      } else if (error.name === 'QueryFailedError') {
+        throw new BadRequestException('Invalid product Id format, Please enter correct Id for updating the product record!')
       }
 
       throw new NotFoundException(`User with given id ${id} not found!`);

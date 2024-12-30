@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Delete, Req, UseGuards, NotFoundException, InternalServerErrorException, Put } from '@nestjs/common';
+import { Controller, Post, Body, Param, Delete, Req, UseGuards, NotFoundException, InternalServerErrorException, Put, BadRequestException } from '@nestjs/common';
 import { CartService } from './cart.service';
 import { CreateCartDto } from './dto/create-cart.dto';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -16,8 +16,11 @@ import { UpdateCartDto } from './dto/update-cart.dto';
 export class CartController {
   constructor(
     private readonly cartService: CartService,
-
   ) { }
+
+
+
+
 
 
   @Post('addProduct')
@@ -25,19 +28,10 @@ export class CartController {
   @Roles([Role.User])
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Add product into cart (User access)' })
-  @ApiResponse({
-    status: 201,
-    description: 'Product successfully added to the cart',
-    schema: {
-      example: {
-        statusCode: 201,
-        message: 'Product successfully added into cart',
-      },
-    },
-  })
+  @ApiResponse({ status: 201, description: 'Product successfully added to the cart' })
   @ApiResponse({
     status: 404,
-    description: 'Product not found or not created by an admin',
+    description: 'NotFound',
     schema: {
       example: {
         statusCode: 404,
@@ -46,19 +40,30 @@ export class CartController {
       },
     },
   })
-  @ApiResponse({ 
+  @ApiResponse({
     status: 500, description: 'Failed to update cart-item product quantity into cart!'
   })
   async addProductToCart(@Req() req, @Body() createCartDto: CreateCartDto) {
+
     try {
+
       const user = req.user;
+
       return this.cartService.addProductToCart(user, createCartDto);
+
     } catch (error) {
+
       if (error instanceof NotFoundException) {
         throw error;
       }
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
       throw new InternalServerErrorException('An unexpected error occurred while adding the product to the cart');
     }
+
   }
 
 
@@ -70,15 +75,25 @@ export class CartController {
   @UseGuards(CognitoAuthGuard, RolesGuard)
   @Roles([Role.User])
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update the cart-item product quantity (User-access) '})
-  @ApiBody({ type: UpdateCartDto})
-  @ApiResponse({ 
-    status: 201,
-    description: 'Cart item product quantity updated successfully',
+  @ApiOperation({ summary: 'Update the cart-item product quantity (User-access) ' })
+  @ApiBody({ type: UpdateCartDto })
+  @ApiResponse({
+    status: 201, description: 'Cart item product quantity updated successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'BadRequest',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Invalid product Id format, Please enter correct Id for updating the product quantity!',
+        error: ':BadRequest'
+      }
+    }
   })
   @ApiResponse({
     status: 404,
-    description: 'Cart-item product not found in cart!',
+    description: 'NotFound',
     schema: {
       example: {
         statusCode: 404,
@@ -87,22 +102,28 @@ export class CartController {
       }
     }
   })
-  @ApiResponse({ 
-    status: 500,
-    description: 'Failed to update cart-item product quantity',
+  @ApiResponse({
+    status: 500, description: 'Failed to update cart-item product quantity',
   })
   async updateProductInCart(
     @Req() req,
     @Body('productId') productId: string,
     @Body('quantity') quantity: number,
-) {
+  ) {
 
     try {
+
       const userId = req.user.id;
+
       return await this.cartService.updateProductInCart(userId, productId, quantity);
+
     } catch (error) {
-      
-      if(error instanceof NotFoundException) {
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      if (error instanceof BadRequestException) {
         throw error;
       }
 
@@ -128,6 +149,17 @@ export class CartController {
     description: 'Product successfully removed from the cart',
   })
   @ApiResponse({
+    status: 400,
+    description: 'BadRequest',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Invalid product Id format, Please enter correct Id for deleting the product record!',
+        error: ':BadRequest'
+      }
+    }
+  })
+  @ApiResponse({
     status: 404,
     description: 'Product not found in the cart',
     schema: {
@@ -139,21 +171,26 @@ export class CartController {
     },
   })
   async deleteProductFromCart(
-    @Req() req, 
+    @Req() req,
     @Param('productId') productId: string
   ) {
-      
+
     try {
 
       const user = req.user;
+
       return this.cartService.deleteProductFromCart(user, productId);
 
     } catch (error) {
 
       if (error instanceof NotFoundException) {
         throw error;
-
       }
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
       throw new InternalServerErrorException('An unexpected error occurred while removing the product from the cart');
     }
 

@@ -12,11 +12,8 @@ import {
   InternalServerErrorException,
   UseGuards,
   Req,
-  ForbiddenException,
   NotFoundException,
   BadRequestException,
-  HttpException,
-  HttpStatus,
 } from '@nestjs/common';
 
 import {
@@ -40,10 +37,9 @@ import { RolesGuard } from 'src/auth/gurards/roles.guard';
 
 @Controller('products')
 export class ProductsController {
-  // usersService: any;
+  
   constructor(
     private readonly productsService: ProductsService,
-    private readonly uploadService: UploadService,
   ) { }
 
 
@@ -73,6 +69,17 @@ export class ProductsController {
     },
   })
   @ApiResponse({ status: 201, description: 'Product created successfully' })
+  @ApiResponse({
+    status: 400,
+    description: 'BadRequest',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.',
+        error: 'BadRequest',
+      },
+    },
+  })
   @ApiResponse({ status: 500, description: 'Failed to create Product' })
 
   async createProduct(
@@ -84,13 +91,20 @@ export class ProductsController {
     const user = req.user;
 
     try {
+
       const result = await this.productsService.createProduct(createProductDto, file);
-      console.log('Product created data is: ', result);
 
       return result;
+
     } catch (error) {
+
       console.error('Error creating product', error.message);
-      throw new BadRequestException('Failed to create product');
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to create product!');
     }
 
   }
@@ -256,16 +270,36 @@ export class ProductsController {
   @Roles([Role.SuperAdmin, Role.ProductAssistantAdmin])
   @ApiOperation({ summary: 'Retrieve a list of all products (Super-Admin access && Product-Assistant Admin access)' })
   @ApiResponse({ status: 200, description: 'Products retrieved successfully' })
+  @ApiResponse({
+    status: 404,
+    description: 'NotFound',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'No products record found',
+        error: 'NotFound'
+      },
+    },
+  })
   @ApiResponse({ status: 500, description: 'Failed to retrieve products' })
 
   async findAll() {
 
     try {
+
       const products = await this.productsService.findAll();
+
       return products;
+
     } catch (error) {
+
       console.error('Error retrieving the products!', error.message);
-      throw new NotFoundException('No Products record found!');
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to retrieve products record!');
     }
 
   }
@@ -282,9 +316,20 @@ export class ProductsController {
   @Roles([Role.SuperAdmin, Role.ProductAssistantAdmin])
   @ApiOperation({ summary: 'Retrieve a product by ID (Super-Admin access && Product-Assistant Admin access)' })
   @ApiResponse({ status: 200, description: 'Product retrieved successfully' })
+  @ApiResponse({
+    status: 400,
+    description: 'BadRequest',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Invalid Product Id format, Please enter correct Id for retrieving the product record!',
+        error: ':BadRequest'
+      }
+    }
+  })
   @ApiResponse({ 
     status: 404, 
-    description: 'Product not found',
+    description: 'NotFound',
     schema: {
       example: {
         statusCode: 404,
@@ -298,16 +343,21 @@ export class ProductsController {
     description: 'Failed to find the product with given id'
    })
 
-  async findOne(@Param('productId') productId: string) {
+  async findOne(@Param('id') id: string) {
 
     try {
 
-      return await this.productsService.getProduct(productId);
+      return await this.productsService.getProductById(id);
 
     } catch (error) {
-      console.error(`Product with ID ${productId} not found`, error.message);
+
+      console.error(`Error finding the product with id ${id}`, error.message);
 
       if(error instanceof NotFoundException) {
+        throw error;
+      }
+
+      if(error instanceof BadRequestException) {
         throw error;
       }
 
@@ -330,7 +380,29 @@ export class ProductsController {
   @ApiParam({ name: 'id', description: 'Product ID to update', type: String })
   @ApiBody({ type: UpdateProductDto })
   @ApiResponse({ status: 200, description: 'Product updated successfully' })
-  @ApiResponse({ status: 404, description: 'Product not found' })
+  @ApiResponse({
+    status: 400,
+    description: 'BadRequest',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Invalid product Id format, Please enter correct Id for updating the product record!',
+        error: ':BadRequest'
+      }
+    }
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'NotFound',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'Product with given id not found',
+        error: 'NotFound'
+      }
+    }
+  })
+  @ApiResponse({ status: 500, description: 'Failed to update product record' })
 
   async update(
     @Param('id') id: string,
@@ -338,14 +410,27 @@ export class ProductsController {
   ) {
 
     try {
+
       const updatedProduct = await this.productsService.update(
         id,
         updateProductDto,
       );
+
       return updatedProduct;
+
     } catch (error) {
+      
       console.error(`Product with ID ${id} not found`, error.message);
-      throw new InternalServerErrorException('Failed to update product attributes!');
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }  
+      
+      if(error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to update product record!');
     }
 
   }
@@ -364,7 +449,29 @@ export class ProductsController {
   @ApiOperation({ summary: 'Delete a product by ID (Super-Admin access && Product-Assistant Admin access && User-access)' })
   @ApiParam({ name: 'id', description: 'Product ID to delete', type: String })
   @ApiResponse({ status: 200, description: 'Product deleted successfully' })
-  @ApiResponse({ status: 404, description: 'Product not found' })
+  @ApiResponse({
+    status: 400,
+    description: 'BadRequest',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Invalid product Id format, Please enter correct Id for updating the product record!',
+        error: ':BadRequest'
+      }
+    }
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'NotFound',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'Product with given id not found',
+        error: 'NotFound'
+      }
+    }
+  })
+  @ApiResponse({ status: 500, description: 'Failed to delete product record!' })
 
   async remove(@Param('id') id: string) {
 
@@ -373,6 +480,15 @@ export class ProductsController {
      
     } catch (error) {
       console.error(`Product with ID ${id} not found`, error.message);
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }  
+      
+      if(error instanceof BadRequestException) {
+        throw error;
+      }
+
       throw new NotFoundException('No product record with given id found!');
     }
   }

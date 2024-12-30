@@ -50,6 +50,7 @@ import { ConfirmEmailDto } from './dto/confirm-email.dto';
 import { NotAuthorizedException } from '@aws-sdk/client-cognito-identity-provider';
 import { isTaxId } from 'class-validator';
 import { InstanceChecker } from 'typeorm';
+import { error } from 'console';
 
 
 
@@ -87,7 +88,7 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'User registered successfully' })
   @ApiResponse({
     status: 409,
-    description: 'Conflict: User with this email already exists',
+    description: 'Conflict',
     schema: {
       example: {
         statusCode: 409,
@@ -98,7 +99,7 @@ export class UsersController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Invalid file type. Only image files (jpg, jpeg, png, gif) are allowed.',
+    description: 'BadRequest',
     schema: {
       example: {
         statusCode: 400,
@@ -143,19 +144,50 @@ export class UsersController {
   @Post('confirm-email')
   @ApiOperation({ summary: 'Cofirming the email through email verification code' })
   @ApiResponse({ status: 200, description: 'email verified successfully' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
+  @ApiResponse({
+    status: 400,
+    description: 'BadRequest',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'ExpiredCodeException',
+        error: 'BadRequest',
+      },
+    },
+  })
+
+  @ApiResponse({
+    status: 400,
+    description: 'BadRequest',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'CodeMismatchException',
+        error: 'BadRequest',
+      },
+    },
+  })
+
+  @ApiResponse({ status: 500, description: 'Failed to confirm email status' })
 
   async confirmEmail(@Body() confirmEmailDto: ConfirmEmailDto) {
 
     try {
+
       const emailStatus = this.usersService.confirmEmail(
         confirmEmailDto.email,
         confirmEmailDto.confirmationCode
       );
+
       return emailStatus;
 
     } catch (error) {
       console.error('Error confirming the user email', error.message);
+
+      if(error instanceof BadRequestException) {
+        throw error;
+      }
+
       throw new InternalServerErrorException('Error confirming the email');
     }
 
@@ -172,11 +204,7 @@ export class UsersController {
   @Post('login')
   @ApiOperation({ summary: 'Authenticate a user and return a JWT token' })
   @ApiBody({ type: LoginDto })
-  @ApiResponse({
-    status: 200,
-    description: 'User authenticated successfully',
-
-  })
+  @ApiResponse({ status: 200, description: 'User authenticated successfully' })
   @ApiResponse({
     status: 403,
     description: 'Forbidden',
@@ -188,6 +216,7 @@ export class UsersController {
       },
     },
   })
+
   @ApiResponse({
     status: 401,
     description: 'Unauthorized',
@@ -230,11 +259,11 @@ export class UsersController {
 
   async login(@Body() loginDto: LoginDto) {
 
-
     try {
       return await this.usersService.login(loginDto);
 
     } catch (error) {
+      
       console.error('Error during login:', error, error instanceof NotAuthorizedException);
 
       if (error instanceof ForbiddenException) {
@@ -283,7 +312,7 @@ export class UsersController {
   })
   @ApiResponse({
     status: 404,
-    description: 'User not found',
+    description: 'NotFound',
     schema: {
       example: {
         statusCode: 404,
@@ -293,14 +322,28 @@ export class UsersController {
     },
   })
   @ApiResponse({ status: 500, description: 'Failed to retrieve user profile' })
-  async getProfile(@Req() req: Request, @Param('email') email: string): Promise<string> {
+  async getProfile(@Req() req: Request) {
 
     try {
 
-      const accessToken = req.headers['authorization'].split(' ')[1];
-      await this.usersService.getClaims(accessToken);
+      const authorizationHeader = req.headers['authorization'];
 
-      return await this.usersService.getUserProfile(email);
+      if (!authorizationHeader) {
+        throw new UnauthorizedException('Authorization header is missing!');
+      }
+
+      const accessToken = authorizationHeader.split(' ')[1];
+
+      if (!accessToken) {
+        throw new UnauthorizedException('Access token is missing!');
+      }
+
+      const claims = await this.usersService.getClaims(accessToken);
+
+      const profile = await this.usersService.getUserProfile(claims.email);
+
+      return profile;
+
     } catch (error) {
       console.error('Error fetching profile:', error.message);
 
@@ -333,7 +376,7 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'User list retrieved successfully' })
   @ApiResponse({
     status: 403,
-    description: 'Forbidden: Only SuperAdmin or UserAssistantAdmin can retrieve users record',
+    description: 'Forbidden',
     schema: {
       example: {
         statusCode: 403,
@@ -344,7 +387,7 @@ export class UsersController {
   })
   @ApiResponse({
     status: 404,
-    description: 'No users record found!',
+    description: 'NotFound',
     schema: {
       example: {
         statusCode: 404,
@@ -441,8 +484,19 @@ export class UsersController {
   @ApiOperation({ summary: 'Get details of a specific user by userId (Super-Admin access && Users-Assistant Admin access)' })
   @ApiResponse({ status: 200, description: 'User details retrieved successfully' })
   @ApiResponse({
+    status: 400,
+    description: 'BadRequest',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Invalid User Id format, Please enter correct Id for retrieving the user record!',
+        error: ':BadRequest'
+      }
+    }
+  })
+  @ApiResponse({
     status: 404,
-    description: 'User not found',
+    description: 'NotFound',
     schema: {
       example: {
         statusCode: 404,
@@ -452,16 +506,21 @@ export class UsersController {
     }
   })
   @ApiResponse({ status: 500, description: 'Failed to retrieve user by id' })
-  async findOne(@Param('userId') userId: string): Promise<{ userData: User }> {
+  async findOne(@Param('userId') userId: string) {
 
     try {
 
       return await this.usersService.findUserById(userId);
 
     } catch (error) {
+      
       console.error(`Error finding the user with id ${userId}`, error.message);
 
       if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      if(error instanceof BadRequestException) {
         throw error;
       }
 
@@ -479,22 +538,54 @@ export class UsersController {
 
   // Route for updating user by id
   @Put('updateUser/:userId')
-  // @ApiBearerAuth()
-  // @UseGuards(CognitoAuthGuard, RolesGuard)
-  // @Roles([Role.SuperAdmin, Role.UserAssistantAdmin, Role.User])
   @ApiOperation({ summary: 'Update a specific user by userId (Super-Admin access && Users-Assistant Admin access && User-access)' })
   @ApiParam({ name: 'userId', description: 'userId to update', type: String })
   @ApiBody({ type: UpdateUserDto })
   @ApiResponse({ status: 200, description: 'User updated successfully' })
-  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiResponse({
+    status: 400,
+    description: 'BadRequest',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Invalid user Id format, Please enter correct Id for updating the user record!',
+        error: ':BadRequest'
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 404,
+    description: 'NotFound',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'User with given id not found!',
+        error: 'NotFound'
+      }
+    }
+   })
+   @ApiResponse({ status: 500, description: 'Failed to update user record!'})
 
   async update(@Param('userId') userId: string, @Body() updateUserDto: UpdateUserDto) {
 
     try {
+
       const updatedUser = await this.usersService.update(userId, updateUserDto);
+
       return updatedUser;
+
     } catch (error) {
+      
       console.error(`Error updating user with username ${userId}`, error.message);
+
+      if(error instanceof NotFoundException) {
+        throw error;
+      } 
+
+      if(error instanceof BadRequestException) {
+        throw error;
+      }
+
       throw new InternalServerErrorException('Failed to update user attributes.');
     }
 
@@ -514,17 +605,49 @@ export class UsersController {
   @ApiOperation({ summary: 'Delete a specific user by userId (Super-Admin access && Users-Assistant Admin access)' })
   @ApiParam({ name: 'userId', description: 'UserId to delete', type: String })
   @ApiResponse({ status: 200, description: 'User deleted successfully' })
-  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiResponse({
+    status: 400,
+    description: 'BadRequest',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Invalid user Id format, Please enter correct Id for deleting the user record!',
+        error: ':BadRequest'
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'User not found',
+    schema: {
+      example: {
+        statusCode: 404,
+        message: 'User with given id not found',
+        error: 'NotFound'
+      }
+    }
+  })
+  
+  @ApiResponse({ status: 500, description: 'Failed to delete user record!'})
 
   async remove(@Param('userId') userId: string) {
 
     try {
+
       return await this.usersService.remove(userId);
-      // console.log('deletedUser is: ', deletedUser);
 
     } catch (error) {
       console.error(`Error deleting the user with id ${userId}`, error.message);
-      throw new NotFoundException(`User with given id not found!`);
+
+      if(error instanceof NotFoundException) {
+        throw error;
+      }
+
+      if(error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(`Failed to delete the user with given id!`);
     }
 
   }

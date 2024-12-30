@@ -284,17 +284,21 @@ export class AdminService {
         throw new NotFoundException(`Admin with given id ${adminId} not found.`);
       }
 
-
       return admin;
+
     } catch (error) {
       console.error('Error retrieving admin:', error);
 
       if (error instanceof NotFoundException) {
         throw error;
+
+      } else if(error.name === 'QueryFailedError') {
+        throw new BadRequestException('Invalid admin Id format, Please enter correct Id for retrieving the admin record!')
       }
 
       throw new InternalServerErrorException('Failed to retrieve admin record.');
     }
+    
   }
 
 
@@ -305,7 +309,7 @@ export class AdminService {
 
 
   // Update admin details
-  async updateAdmin(adminId: string, updateAdminDto: UpdateAdminDto): Promise<Partial<{message: string, updatedAdmin: any}>> {
+  async updateAdmin(adminId: string, updateAdminDto: UpdateAdminDto): Promise<Partial<{message: string, updatedAdmin: UpdateAdminDto}>> {
 
     try {
 
@@ -387,7 +391,7 @@ export class AdminService {
       // const updatedAdmin = await this.getAdminById(id);
       return {
         message: 'Admin details updated successfuly! The updated admin details are: ',
-        updatedAdmin
+        updatedAdmin: updatedAdmin
         // id: updatedAdmin.id,
         // name: updateAdminDto.name || updatedAdmin.name,
         // email: updateAdminDto.email || updatedAdmin.email,
@@ -398,12 +402,15 @@ export class AdminService {
     } catch (error) {
       console.error('Error updating user', error);
 
-      if (error instanceof NotFoundException) {
+      if(error instanceof NotFoundException) {
         throw error;
+      } else if(error.name === 'QueryFailedError') {
+        throw new BadRequestException('Invalid admin Id format, Please enter correct Id for retrieving the admin record!')
       }
-
+     
       throw new InternalServerErrorException('Failed to update admin attributes!');
     }
+
   }
 
 
@@ -421,7 +428,7 @@ export class AdminService {
       const admin = await this.adminRepository.findOne({ where: { id: adminId } });
 
       if (!admin) {
-        throw new NotFoundException(`User with given userid ${adminId} not found!`);
+        throw new NotFoundException(`Admin with given id ${adminId} not found!`);
       }
 
       const deletedAdmin = await this.adminRepository.remove(admin);
@@ -445,9 +452,11 @@ export class AdminService {
 
       if (error instanceof NotFoundException) {
         throw error;
+      } else if(error.name === 'QueryFailedError') {
+        throw new BadRequestException('Invalid admin Id format, Please enter correct Id for retrieving the admin record!')
       }
 
-      throw new NotFoundException('No admin record found for deletion');
+      throw new InternalServerErrorException('Failed to delete admin record with given id');
     }
 
   }

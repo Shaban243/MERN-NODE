@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateCartDto } from './dto/create-cart.dto';
 import { UpdateCartDto } from './dto/update-cart.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -27,10 +27,11 @@ export class CartService {
 
   // Function for adding the product to cart
   async addProductToCart(user: User, createCartDto: CreateCartDto): Promise<any> {
+
     try {
 
       const existingUser = await this.userRepository.findOne({ where: { id: user.id } });
-      
+
       if (!existingUser) {
         throw new NotFoundException('User not found');
       }
@@ -56,12 +57,19 @@ export class CartService {
       }
 
       return this.cartRepository.save(cartItem);
+
     } catch (error) {
+
       if (error instanceof NotFoundException) {
         throw error;
+
+      } else if (error.name === 'QueryFailedError') {
+        throw new BadRequestException('Invalid product Id format, Please enter correct Id for adding the product record into cart!')
       }
+
       throw new InternalServerErrorException('Failed to add product to the cart');
     }
+
   }
 
 
@@ -70,31 +78,34 @@ export class CartService {
 
 
   // Function for updating the quantity of cart-item product
-  async updateProductInCart(userId: string, productId: string, quantity: number ) : Promise<any> {
+  async updateProductInCart(userId: string, productId: string, quantity: number): Promise<any> {
 
     try {
 
-      if(quantity <= 0) {
+      if (quantity <= 0) {
         throw new NotFoundException('Quantity must be greater than 0');
       }
-      
+
       const cartItem = await this.cartRepository.findOne({
-         where : { user: { id: userId }, product: { id: productId } },
-         relations:  ['user', 'product']
-        });
+        where: { user: { id: userId }, product: { id: productId } },
+        relations: ['user', 'product']
+      });
 
-        if(!cartItem) {
-          throw new NotFoundException('Product not found in cart');
-        }
+      if (!cartItem) {
+        throw new NotFoundException('Product not found in cart');
+      }
 
-        cartItem.quantity = quantity;
+      cartItem.quantity = quantity;
 
-        return await this.cartRepository.save(cartItem);
+      return await this.cartRepository.save(cartItem);
 
     } catch (error) {
-      
-      if(error instanceof NotFoundException) {
+
+      if (error instanceof NotFoundException) {
         throw error;
+
+      } else if (error.name === 'QueryFailedError') {
+        throw new BadRequestException('Invalid product Id format, Please enter correct Id for updating the product quantity record!')
       }
 
       throw new InternalServerErrorException('Failed to update the cart-item product quantity');
@@ -112,9 +123,13 @@ export class CartService {
 
   // Function for removing the product from cart
   async deleteProductFromCart(user: User, productId: string): Promise<any> {
+
     try {
       const cartItem = await this.cartRepository.findOne({
-        where: { user: { id: user.id }, product: { id: productId } },
+        where: {
+          user: { id: user.id },
+          product: { id: productId }
+        },
       });
 
       if (!cartItem) {
@@ -125,13 +140,21 @@ export class CartService {
 
       return {
         message: `The cart-item product with given id ${productId} deleted successfully from cart!`,
+        deletedItem
       }
+
     } catch (error) {
+      
       if (error instanceof NotFoundException) {
         throw error;
+
+      } else if (error.name === 'QueryFailedError') {
+        throw new BadRequestException('Invalid product Id format, Please enter correct Id for deleting the product from cart!')
       }
+
       throw new InternalServerErrorException('Failed to remove product from the cart');
     }
+
   }
 
 
