@@ -6,7 +6,7 @@ import { Cart } from './entities/cart.entity';
 import { Repository } from 'typeorm';
 import { Product } from 'src/products/entities/product.entity';
 import { User } from 'src/users/entities/user.entity';
-import { InternalErrorException } from '@aws-sdk/client-cognito-identity-provider';
+
 
 @Injectable()
 export class CartService {
@@ -15,8 +15,10 @@ export class CartService {
 
     @InjectRepository(Cart)
     private readonly cartRepository: Repository<Cart>,
+
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+
     @InjectRepository(User)
     private readonly userRepository: Repository<User>
 
@@ -30,7 +32,9 @@ export class CartService {
 
     try {
 
-      const existingUser = await this.userRepository.findOne({ where: { id: user.id } });
+      const existingUser = await this.userRepository.findOne({
+        where: { id: user.id }
+      });
 
       if (!existingUser) {
         throw new NotFoundException('User not found');
@@ -47,16 +51,19 @@ export class CartService {
       }
 
       let cartItem = await this.cartRepository.findOne({
-        where: { user: { id: user.id }, product: { id: product.id } },
+        where: {
+          user: { id: user.id },
+          product: { id: product.id }
+        },
       });
 
       if (cartItem) {
         cartItem.quantity += quantity;
       } else {
-        cartItem = this.cartRepository.create({ user, product, quantity });
+        cartItem = this.cartRepository.create({ quantity, user, product });
       }
 
-      return this.cartRepository.save(cartItem);
+      return await this.cartRepository.save(cartItem);
 
     } catch (error) {
 
@@ -77,8 +84,10 @@ export class CartService {
 
 
 
+
+
   // Function for updating the quantity of cart-item product
-  async updateProductInCart(userId: string, productId: string, quantity: number): Promise<any> {
+  async updateProductInCart(userId: string, productId: string, quantity: number): Promise<{ message: string, updatedItem }> {
 
     try {
 
@@ -87,7 +96,10 @@ export class CartService {
       }
 
       const cartItem = await this.cartRepository.findOne({
-        where: { user: { id: userId }, product: { id: productId } },
+        where: {
+          user: { id: userId },
+          product: { id: productId }
+        },     
         relations: ['user', 'product']
       });
 
@@ -97,7 +109,12 @@ export class CartService {
 
       cartItem.quantity = quantity;
 
-      return await this.cartRepository.save(cartItem);
+      const updatedItem = await this.cartRepository.save(cartItem);
+
+      return {
+        message: 'The product quantity in cart is successfully updated!',
+        updatedItem
+      }
 
     } catch (error) {
 
@@ -122,7 +139,7 @@ export class CartService {
 
 
   // Function for removing the product from cart
-  async deleteProductFromCart(user: User, productId: string): Promise<any> {
+  async deleteProductFromCart(user: User, productId: string): Promise<{message: string, deletedItem}> {
 
     try {
       const cartItem = await this.cartRepository.findOne({
@@ -144,7 +161,7 @@ export class CartService {
       }
 
     } catch (error) {
-      
+
       if (error instanceof NotFoundException) {
         throw error;
 

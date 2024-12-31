@@ -16,7 +16,7 @@ import { Product } from 'src/products/entities/product.entity';
 import { AdminService } from 'src/admin/admin.service';
 import { AdminModule } from 'src/admin/admin.module';
 import { Admin } from 'typeorm';
-import { UploadService } from 'services/upload.service';
+import { UploadService } from 'src/services/upload.service';
 
 
 @Module({
@@ -35,7 +35,7 @@ import { UploadService } from 'services/upload.service';
   ],
   controllers: [UsersController],
   providers: [AuthService, UsersService, ProductsService, AdminService,UploadService],
-  exports: [UsersService, AuthService],
+  exports: [UsersService, AuthService, UploadService],
 })
 
 

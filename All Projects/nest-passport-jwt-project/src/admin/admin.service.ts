@@ -34,6 +34,7 @@ import { cognito } from 'config/aws.config';
 import { error, log } from 'console';
 import { create } from 'domain';
 import { UsersService } from 'src/users/users.service';
+import { get } from 'http';
 
 
 
@@ -91,10 +92,30 @@ export class AdminService {
         ],
       });
 
-      await this.cognito.send(signUpCommand);
+       await this.cognito.send(signUpCommand);
 
+      const getUserCommand = new AdminGetUserCommand({
+        UserPoolId: process.env.COGNITO_USER_POOL_ID,
+        Username: email
+      });
+
+      const response = await this.cognito.send(getUserCommand);
+
+      const userAttributes = response.UserAttributes;
+      userAttributes.reduce((acc, { Name, Value }) => {
+        const key = Name.startsWith('custom:')
+          ? Name.replace('custom:', '')
+          : Name;
+        acc[key] = Value;
+        return acc;
+      }, {});
+
+      const adminId = response.UserAttributes?.find(
+        (attr) => attr.Name === 'sub'
+      )?.Value;
 
       const admin = this.adminRepository.create({
+        id: adminId,
         ...createAdminDto
       });
 

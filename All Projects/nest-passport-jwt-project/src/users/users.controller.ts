@@ -38,7 +38,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { RolesGuard } from 'src/auth/gurards/roles.guard';
 import { User } from './entities/user.entity';
-import { UploadService } from 'services/upload.service';
+import { UploadService } from 'src/services/upload.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Express } from 'express';
 import { LoginDto } from 'src/auth/dto/login.dto';
@@ -539,8 +539,6 @@ export class UsersController {
   // Route for updating user by id
   @Put('updateUser/:userId')
   @ApiOperation({ summary: 'Update a specific user by userId (Super-Admin access && Users-Assistant Admin access && User-access)' })
-  @ApiParam({ name: 'userId', description: 'userId to update', type: String })
-  @ApiBody({ type: UpdateUserDto })
   @ApiResponse({ status: 200, description: 'User updated successfully' })
   @ApiResponse({
     status: 400,

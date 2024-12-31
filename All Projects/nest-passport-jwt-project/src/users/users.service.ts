@@ -2,8 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
-  forwardRef,
-  Inject,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -12,51 +10,32 @@ import {
 
 import {
   AdminInitiateAuthCommand,
-  ListUsersCommand,
-  AdminCreateUserCommand,
-  AdminDeleteUserCommand,
   AdminGetUserCommand,
-  AdminUpdateUserAttributesCommand,
-  AdminSetUserPasswordCommand,
   CognitoIdentityProviderClient,
   SignUpCommand,
   ConfirmSignUpCommand,
-  InternalErrorException,
   NotAuthorizedException,
-  GetUserCommand,
-  UsernameAttributeType,
 } from '@aws-sdk/client-cognito-identity-provider';
 
-import { CreateUserDto, UserInterface } from './dto/create-user.dto';
+import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import { User } from './entities/user.entity';
 import { FindOptionsWhere, Not, Repository } from 'typeorm';
 import { LoginInterface } from 'src/auth/dto/login.dto';
-import { Product } from 'src/products/entities/product.entity';
-import { ProductsService } from 'src/products/products.service';
-import * as crypto from 'crypto';
 import { cognito } from 'config/aws.config';
-import { cognito_user_pool_id } from 'config/aws.config';
-import { CognitoUserPool } from 'amazon-cognito-identity-js';
-import { Role } from 'src/auth/roles.enum';
-import { GetObjectCommand, ListObjectsV2Command, NotFound, S3Client, UploadPartCommand } from '@aws-sdk/client-s3';
-import { config, emit } from 'process';
-import { UploadService } from 'services/upload.service';
-import { create } from 'domain';
-import { JwtService } from '@nestjs/jwt';
-import { decode } from 'punycode';
-import { AdminService } from 'src/admin/admin.service';
+import { ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
+import { UploadService } from 'src/services/upload.service';
 import { Admin } from 'src/admin/entities/admin.entity';
 import * as jwt from 'jsonwebtoken';
-import { profile } from 'console';
+
 
 
 @Injectable()
 export class UsersService {
   private cognito: CognitoIdentityProviderClient;
-  // adminRepository: any;
+  
 
   constructor(
 
@@ -121,7 +100,7 @@ export class UsersService {
         Username: email,
       });
 
-      await this.cognito.send(getUserCommand);
+      const response = await this.cognito.send(getUserCommand);
 
       // const userAttributes = userResponse.UserAttributes.reduce((acc, attr) => {
       //   const key = attr.Name.startsWith('custom:')
@@ -134,7 +113,18 @@ export class UsersService {
       // const userId = userResponse.Username;
 
 
+      const userAttributes = response.UserAttributes;
+      userAttributes.reduce((acc, { Name, Value }) => {
+        const key = Name.startsWith('custom:')
+          ? Name.replace('custom:', '')
+          : Name;
+        acc[key] = Value;
+        return acc;
+      }, {});
 
+      const userId = response.UserAttributes?.find(
+        (attr) => attr.Name === 'sub'
+      )?.Value
 
       let image_url = null;
 
@@ -158,6 +148,7 @@ export class UsersService {
 
 
       const user = this.usersRepository.create({
+        id: userId,
         name: createUserDto.name,
         email: createUserDto.email,
         address: createUserDto.address,
@@ -652,7 +643,7 @@ export class UsersService {
 
       const user = await this.usersRepository.findOne({
         where: { id: userId },
-        relations: ['cart', 'cart.product'],
+        relations: ['cart.product'],
       });
 
       if (!user) {

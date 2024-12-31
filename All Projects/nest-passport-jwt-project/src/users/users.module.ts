@@ -3,7 +3,7 @@ import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
-import { UploadService } from 'services/upload.service';
+import { UploadService } from 'src/services/upload.service';
 import { Product } from 'src/products/entities/product.entity';
 import { Cart } from 'src/cart/entities/cart.entity';
 import { Admin } from 'src/admin/entities/admin.entity';
@@ -18,9 +18,9 @@ import { AdminRepository } from 'src/admin/admin.repository';
 
 @Module({
 
-  imports: [TypeOrmModule.forFeature([Product, User, Cart,Admin]), forwardRef(() => AdminModule)],
+  imports: [TypeOrmModule.forFeature([Product, User, Cart, Admin]), forwardRef(() => AdminModule)],
   controllers: [UsersController],
-  providers: [UploadService, UsersService, JwtService],
+  providers: [UsersService, UploadService, JwtService],
   exports: [UsersService],
 
 })

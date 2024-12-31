@@ -8,7 +8,7 @@ import { User } from 'src/users/entities/user.entity';
 import { AdminGetUserCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { cognito } from 'config/aws.config';
 import { Role } from 'src/auth/roles.enum';
-import { UploadService } from 'services/upload.service';
+import { UploadService } from 'src/services/upload.service';
 
 
 

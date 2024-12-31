@@ -8,7 +8,6 @@ export class Cart {
 @PrimaryGeneratedColumn('uuid')
 id: string;
 
-
 @ManyToOne( () => User, (user) => user.cart, { onDelete: 'CASCADE' })
 user: User;
 

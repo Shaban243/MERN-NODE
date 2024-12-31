@@ -30,6 +30,17 @@ export class CartController {
   @ApiOperation({ summary: 'Add product into cart (User access)' })
   @ApiResponse({ status: 201, description: 'Product successfully added to the cart' })
   @ApiResponse({
+    status: 400,
+    description: 'BadRequest',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Invalid product Id format, Please enter correct Id for adding the product into cart!',
+        error: ':BadRequest'
+      }
+    }
+  })
+  @ApiResponse({
     status: 404,
     description: 'NotFound',
     schema: {
@@ -48,7 +59,7 @@ export class CartController {
     try {
 
       const user = req.user;
-
+      
       return this.cartService.addProductToCart(user, createCartDto);
 
     } catch (error) {

@@ -23,6 +23,7 @@ export interface UserInterface {
 }
 
 export class CreateUserDto {
+
   @ApiProperty({description: 'Name', required: true})
   @IsNotEmpty()
   @IsString()

@@ -29,7 +29,7 @@ import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { UploadService } from 'services/upload.service';
+import { UploadService } from 'src/services/upload.service';
 import { Roles } from 'src/auth/gurards/roles.decorator';
 import { Role } from 'src/auth/roles.enum';
 import { CognitoAuthGuard } from 'src/auth/gurards/cognito.guard';
