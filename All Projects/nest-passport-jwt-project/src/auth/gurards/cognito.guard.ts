@@ -1,17 +1,6 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { CognitoIdentityProviderClient, GetUserCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { CanActivate, ExecutionContext } from '@nestjs/common';
-import { Observable } from 'rxjs';
-import * as jwt from 'jsonwebtoken'; 
-import {
-  CognitoIdentityProviderClient,
-  GetUserCommand,
-} from '@aws-sdk/client-cognito-identity-provider';
-import { cognito } from 'config/aws.config'; 
-import { Role } from '../roles.enum';
 import { Reflector } from '@nestjs/core';
 
 @Injectable()

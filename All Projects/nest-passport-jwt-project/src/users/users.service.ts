@@ -643,7 +643,7 @@ export class UsersService {
 
       const user = await this.usersRepository.findOne({
         where: { id: userId },
-        relations: ['cart.product'],
+        relations: ['cart', 'cart.product'],
       });
 
       if (!user) {

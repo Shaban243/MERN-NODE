@@ -5,6 +5,7 @@ import { Role } from '../roles.enum';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
+
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
@@ -12,13 +13,13 @@ export class RolesGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
+
     if (!requiredRoles) {
       return true;
     }
+
     const request = context.switchToHttp().getRequest();
     const user = request.user;
-
-    console.log(user);
 
     if (!user) {
       throw new Error('User not authenticated');
