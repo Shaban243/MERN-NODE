@@ -58,9 +58,9 @@ import { error } from 'console';
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
+  
   constructor(
     private readonly usersService: UsersService,
-    // private readonly uploadService: UploadService,
   ) { }
 
 
