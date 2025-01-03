@@ -7,16 +7,13 @@ import {
   Delete,
   Put,
   UsePipes,
-  ValidationPipe,
   UseGuards,
   Req,
   UseInterceptors,
   UploadedFile,
   InternalServerErrorException,
-  Query,
   NotFoundException,
   ForbiddenException,
-  HttpException,
   ConflictException,
   UnauthorizedException,
   BadRequestException,
@@ -32,25 +29,19 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-import { Multer } from 'multer';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { RolesGuard } from 'src/auth/gurards/roles.guard';
 import { User } from './entities/user.entity';
-import { UploadService } from 'src/services/upload.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Express } from 'express';
 import { LoginDto } from 'src/auth/dto/login.dto';
 import { Role } from 'src/auth/roles.enum';
 import { CognitoAuthGuard } from 'src/auth/gurards/cognito.guard';
 import { Roles } from 'src/auth/gurards/roles.decorator';
-import { ConfirmUserDto } from './dto/confirm-user.dto';
 import { ConfirmEmailDto } from './dto/confirm-email.dto';
 import { NotAuthorizedException } from '@aws-sdk/client-cognito-identity-provider';
-import { isTaxId } from 'class-validator';
-import { InstanceChecker } from 'typeorm';
-import { error } from 'console';
 
 
 

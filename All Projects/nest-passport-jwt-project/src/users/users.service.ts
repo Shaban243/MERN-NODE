@@ -17,7 +17,7 @@ import {
   NotAuthorizedException,
 } from '@aws-sdk/client-cognito-identity-provider';
 
-import { CreateUserDto } from './dto/create-user.dto';
+import { CreateUserDto, Role } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
@@ -102,17 +102,6 @@ export class UsersService {
 
       const response = await this.cognito.send(getUserCommand);
 
-      // const userAttributes = userResponse.UserAttributes.reduce((acc, attr) => {
-      //   const key = attr.Name.startsWith('custom:')
-      //     ? attr.Name.replace('custom:', '')
-      //     : attr.Name;
-      //   acc[key] = attr.Value;
-      //   return acc;
-      // }, {});
-
-      // const userId = userResponse.Username;
-
-
       const userAttributes = response.UserAttributes;
       userAttributes.reduce((acc, { Name, Value }) => {
         const key = Name.startsWith('custom:')
@@ -153,7 +142,7 @@ export class UsersService {
         email: createUserDto.email,
         address: createUserDto.address,
         isActive: createUserDto['1'],
-        role: createUserDto['user'],
+        role: Role.User,
         image_url: image_url || null,
       });
 
@@ -303,10 +292,9 @@ export class UsersService {
       if (!accessToken) {
         throw new UnauthorizedException('Access token not found in response');
       }
-
-      let userDetails: User | Admin | null = await this.usersRepository.findOne({
-        where: { email: email } as FindOptionsWhere<User>,
-      });
+      let userDetails : User| Admin
+       userDetails = await this.usersRepository.findOne({
+        where: { email: email }});
 
       if (!userDetails) {
         userDetails = await this.adminRepository.findOne({

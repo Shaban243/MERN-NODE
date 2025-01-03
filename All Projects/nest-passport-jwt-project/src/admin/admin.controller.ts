@@ -121,10 +121,9 @@ export class AdminController {
   })
   @ApiResponse({ status: 500, description: 'Failed to retrieved admins record' })
 
-  async getAllAdmins(@Req() req) {
+  async getAllAdmins() {
 
     try {
-      console.log({ admin: req.admin });
       return this.adminService.getAllAdmins();
     } catch (error) {
       console.error('Error retrieving admins:', error.message);

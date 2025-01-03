@@ -3,6 +3,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Product } from './entities/product.entity';
+import { Multer } from 'multer';
 import { In, Not, Repository } from 'typeorm';
 import { User } from 'src/users/entities/user.entity';
 import { AdminGetUserCommand } from '@aws-sdk/client-cognito-identity-provider';

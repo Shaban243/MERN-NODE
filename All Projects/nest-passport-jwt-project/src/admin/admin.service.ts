@@ -101,21 +101,21 @@ export class AdminService {
 
       const response = await this.cognito.send(getUserCommand);
 
-      const userAttributes = response.UserAttributes;
-      userAttributes.reduce((acc, { Name, Value }) => {
-        const key = Name.startsWith('custom:')
-          ? Name.replace('custom:', '')
-          : Name;
-        acc[key] = Value;
-        return acc;
-      }, {});
+      // const userAttributes = response.UserAttributes;
+      // userAttributes.reduce((acc, { Name, Value }) => {
+      //   const key = Name.startsWith('custom:')
+      //     ? Name.replace('custom:', '')
+      //     : Name;
+      //   acc[key] = Value;
+      //   return acc;
+      // }, {});
 
-      const adminId = response.UserAttributes?.find(
-        (attr) => attr.Name === 'sub'
-      )?.Value;
+      // const adminId = response.UserAttributes?.find(
+      //   (attr) => attr.Name === 'sub'
+      // )?.Value;
 
       const admin = this.adminRepository.create({
-        id: adminId,
+        // id: adminId,
         ...createAdminDto
       });
 
