@@ -29,13 +29,14 @@ import { ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import { UploadService } from 'src/services/upload.service';
 import { Admin } from 'src/admin/entities/admin.entity';
 import * as jwt from 'jsonwebtoken';
+import { Product } from 'src/products/entities/product.entity';
 
 
 
 @Injectable()
 export class UsersService {
   private cognito: CognitoIdentityProviderClient;
-  
+
 
   constructor(
 
@@ -136,7 +137,7 @@ export class UsersService {
       }
 
 
-      const user = this.usersRepository.create({
+      const userData = this.usersRepository.create({
         id: userId,
         name: createUserDto.name,
         email: createUserDto.email,
@@ -148,28 +149,13 @@ export class UsersService {
 
 
       const saltRounds = 10;
-      user.password = await bcrypt.hash(createUserDto.password, saltRounds);
+      userData.password = await bcrypt.hash(createUserDto.password, saltRounds);
 
-      const savedUser = await this.usersRepository.save(user);
+      const savedUser = await this.usersRepository.save(userData);
 
       return {
         message: 'User registered successfully. Please check your email and verify your account!.',
         User: savedUser
-        // savedUser: {
-        //   id: savedUser.id,
-        //   name: savedUser.name,
-        //   email: savedUser.email,
-        //   isActive: savedUser.isActive || 'true',
-        //   address: savedUser.address,
-        //   image_url: image_url || null,
-        // },
-
-        // id: userId,
-        // name: userAttributes['name'],
-        // email: userAttributes['email'],
-        // isActive: userAttributes['isActive'] || 'true',
-        // address: userAttributes['address'],
-        // image_url: image_url || null,
       };
 
     } catch (error) {
@@ -253,20 +239,20 @@ export class UsersService {
         );
       }
 
-      const command = new AdminGetUserCommand({
-        UserPoolId: process.env.COGNITO_USER_POOL_ID,
-        Username: email,
-      });
+      // const command = new AdminGetUserCommand({
+      //   UserPoolId: process.env.COGNITO_USER_POOL_ID,
+      //   Username: email,
+      // });
 
-      const response = await cognito.send(command);
+      // await cognito.send(command);
 
-      const emailStatus = response.UserAttributes?.find(
-        (attr) => attr.Name === 'email_verified',
-      )?.Value;
+      // const emailStatus = response.UserAttributes?.find(
+      //   (attr) => attr.Name === 'email_verified',
+      // )?.Value;
 
-      if (emailStatus !== 'true') {
-        throw new ForbiddenException('Please verify your email before logging in!');
-      }
+      // if (emailStatus !== 'true') {
+      //   throw new ForbiddenException('Please verify your email before logging in!');
+      // }
 
       const authCommand = new AdminInitiateAuthCommand({
 
@@ -292,9 +278,10 @@ export class UsersService {
       if (!accessToken) {
         throw new UnauthorizedException('Access token not found in response');
       }
-      let userDetails : User| Admin
-       userDetails = await this.usersRepository.findOne({
-        where: { email: email }});
+      let userDetails: User | Admin
+      userDetails = await this.usersRepository.findOne({
+        where: { email: email }
+      });
 
       if (!userDetails) {
         userDetails = await this.adminRepository.findOne({
@@ -306,15 +293,15 @@ export class UsersService {
         throw new NotFoundException('User not found in the database');
       }
 
-      return { userDetails, accessToken  };
+      return { userDetails, accessToken };
 
     } catch (error) {
-      
+
       console.error('Login failed:', error);
 
-      if (error instanceof ForbiddenException) {
-        throw error;
-      }
+      // if (error instanceof ForbiddenException) {
+      //   throw error;
+      // }
 
       if (error instanceof NotAuthorizedException) {
         throw error;
@@ -374,15 +361,15 @@ export class UsersService {
     try {
 
       await this.usersRepository.update(userId, { image_url: image_url });
-      
+
     } catch (error) {
-      
+
       console.error(`Error updating image URL for Product ID ${userId}:`, error.message);
 
       throw new InternalServerErrorException('Failed to update User image URL');
-      
+
     }
-    
+
   }
 
 
@@ -466,7 +453,7 @@ export class UsersService {
 
 
   // Function for fetching the user's profile
-  async getUserProfile(email: string): Promise<{type: string, profile: User | Admin}> {
+  async getUserProfile(email: string): Promise<{ type: string, profile: User | Admin }> {
     try {
 
       const user = await this.usersRepository.findOne({ where: { email: email } });
@@ -695,9 +682,9 @@ export class UsersService {
         throw new NotFoundException(`User with id ${userId} not found`);
       }
 
-      if(_updateUserDto.password) {
-      const saltRounds = 10;
-      _updateUserDto.password = await bcrypt.hash(_updateUserDto.password, saltRounds);
+      if (_updateUserDto.password) {
+        const saltRounds = 10;
+        _updateUserDto.password = await bcrypt.hash(_updateUserDto.password, saltRounds);
       }
 
       const result = await this.usersRepository.update(userId, _updateUserDto)

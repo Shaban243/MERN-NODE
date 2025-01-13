@@ -132,18 +132,18 @@ export class ProductsService {
   async createProduct(
     _createProductDto: CreateProductDto,
     imageFile: Express.Multer.File
-  ): Promise<Product> {
+  ): Promise<{message: string, savedProduct: any}> {
 
     try {
 
-      const product = this.productsRepository.create({ ..._createProductDto });
+      const productData = this.productsRepository.create({ ..._createProductDto });
 
-      const savedProduct = await this.productsRepository.save(product);
+      // const savedProduct = await this.productsRepository.save(productData);
 
       let image_url = null;
 
       if (imageFile) {
-        const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+        const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
         const fileExtension = imageFile.originalname.split('.').pop()?.toLowerCase();
 
         if (!allowedExtensions.includes(fileExtension)) {
@@ -157,9 +157,14 @@ export class ProductsService {
         image_url = await this.uploadService.uploadFile(imageFile);
       }
 
-      savedProduct.image_url = image_url;
+      productData.image_url = image_url;
 
-      return await this.productsRepository.save(savedProduct);
+      const savedProduct = await this.productsRepository.save(productData);
+
+      return {
+        message: "Created product details are: ", 
+        savedProduct
+      }
 
     } catch (error) {
 

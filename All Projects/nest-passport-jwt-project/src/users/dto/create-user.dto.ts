@@ -1,8 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
-  IsBoolean,
   IsEmail,
-  IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
