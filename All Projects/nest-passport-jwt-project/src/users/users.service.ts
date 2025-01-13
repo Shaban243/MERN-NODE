@@ -42,6 +42,7 @@ export class UsersService {
 
     @InjectRepository(Admin)
     private readonly adminRepository: Repository<Admin>,
+
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
 
@@ -120,7 +121,7 @@ export class UsersService {
 
       if (imageFile) {
 
-        const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+        const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
         const fileExtension = imageFile.originalname.split('.').pop()?.toLowerCase();
 
         if (!allowedExtensions.includes(fileExtension)) {

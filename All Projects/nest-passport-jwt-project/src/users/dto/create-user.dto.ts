@@ -59,13 +59,16 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsString()
-  image_url: string
+  image_url: string;
 
   // @IsOptional()
   // @IsEnum(Role)
   // @ApiProperty()
   // role: Role;
+
+
 }
+
 
 
 export { Role };

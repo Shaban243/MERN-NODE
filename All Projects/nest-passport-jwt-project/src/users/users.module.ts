@@ -9,16 +9,12 @@ import { Cart } from 'src/cart/entities/cart.entity';
 import { Admin } from 'src/admin/entities/admin.entity';
 import { JwtService } from '@nestjs/jwt';
 import { AdminModule } from 'src/admin/admin.module';
-import { AdminService } from 'src/admin/admin.service';
-import { AdminRepository } from 'src/admin/admin.repository';
 
-
-// import { JwtAuthGuard } from 'src/auth/gurards/jwt.guard';
-// import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
 
-  imports: [TypeOrmModule.forFeature([Product, User, Cart, Admin]), forwardRef(() => AdminModule)],
+  imports: [TypeOrmModule.forFeature([Product, User, Cart, Admin]), 
+  forwardRef(() => AdminModule)],
   controllers: [UsersController],
   providers: [UsersService, UploadService, JwtService],
   exports: [UsersService],
